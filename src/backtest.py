@@ -268,12 +268,18 @@ def run_backtest(
             index=all_dates,
             columns=factor_names
         )
-                # Debug: Check MoE predictions
+        
+        # Debug: Check MoE predictions
         if model_name == 'moe':
-            logger.info(f"MoE predictions summary: min={predictions_df.min().min():.4f}, max={predictions_df.max().max():.4f}, mean={predictions_df.mean().mean():.4f}")
-            logger.info(f"MoE positive predictions: {(predictions_df.values > 0).sum()} out of {predictions_df.size}")
+            min_val = predictions_df.min().min()
+            max_val = predictions_df.max().max()
+            mean_val = predictions_df.mean().mean()
+            pos_count = (predictions_df.values > 0).sum()
+            total = predictions_df.size
+            print(f"\n[DEBUG] MoE predictions: min={min_val:.6f}, max={max_val:.6f}, mean={mean_val:.6f}")
+            print(f"[DEBUG] MoE positive predictions: {pos_count} out of {total} ({pos_count/total*100:.1f}%)\n")
 
-            
+
         
         actuals_df = pd.DataFrame(
             np.vstack(all_actuals),

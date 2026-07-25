@@ -126,7 +126,8 @@ class SimpleMoE:
         predictions = np.zeros((X.shape[0], self.n_experts, self.n_outputs))
         
         for i, expert in enumerate(self.experts):
-            if expert.coef_ is not None:
+            # Check if expert has been fitted (has coef_ attribute)
+            if hasattr(expert, 'coef_') and expert.coef_ is not None:
                 predictions[:, i, :] = expert.predict(X)
             else:
                 # Expert not trained yet, return zeros
@@ -277,12 +278,17 @@ class SimpleMoE:
             if iteration % 10 == 0:
                 logger.info(f"Iteration {iteration}: MSE = {mse:.4f}")
         
-        # Final predictions for a baseline
-        final_pred = self.predict(X)
-        final_mse = np.mean((y - final_pred) ** 2)
-        logger.info(f"Training complete. Final MSE: {final_mse:.4f}")
-        
+        # Ensure model is marked as fitted even if predict fails
         self.is_fitted = True
+        
+        # Final predictions for a baseline
+        try:
+            final_pred = self.predict(X)
+            final_mse = np.mean((y - final_pred) ** 2)
+            logger.info(f"Training complete. Final MSE: {final_mse:.4f}")
+        except Exception as e:
+            logger.warning(f"Could not compute final MSE: {e}")
+            logger.info("Training complete, but final evaluation skipped.")
     
     def predict(self, X):
         """
