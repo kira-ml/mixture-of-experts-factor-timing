@@ -1,4 +1,4 @@
-# moe-factor-timing
+# mixture-of-experts-factor-timing
 
 ## Mixture of Experts for Regime-Switching Factor Timing
 
