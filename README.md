@@ -69,7 +69,7 @@ We frame this as a **probabilistic time-series forecasting** problem:
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/moe-factor-timing.git
+git clone https://github.com/kira-ml/mixture-of-experts-factor-timing.git
 cd moe-factor-timing
 
 # Install
@@ -120,69 +120,5 @@ jupyter notebook notebooks/01_data_exploration.ipynb
 ---
 
 ## License
-
-MIT
-```
-
----
-
-## Alternative: Shorter Version
-
-```markdown
-# moe-factor-timing
-
-## Mixture of Experts for Regime-Switching Factor Timing
-
-🚧 Week 1 MVP
-
----
-
-### The Problem
-
-Factor premiums are time-varying and regime-dependent. Most approaches use simple momentum or binary regime labels. We test whether probabilistic regime identification improves factor timing.
-
-**Research Question:** Can explicit uncertainty over economic regimes improve out-of-sample factor timing?
-
----
-
-### Approach
-
-Probabilistic time-series forecasting with latent regimes.
-
-**Inputs:** Factor returns + macro indicators
-**Outputs:** Distribution of next-month factor returns
-**Evaluation:** Log-likelihood + Sharpe ratio
-
----
-
-### Models
-
-| Type | Models |
-|------|--------|
-| Baselines | Persistence, Rolling Average, Linear Regression, Random Forest |
-| Regime | HMM + Regression |
-| Advanced | Mixture of Experts (LSTM gating) |
-
----
-
-### Quick Start
-
-```bash
-pip install -r requirements.txt
-python src/data_pipeline.py
-```
-
-### Data
-
-yfinance for MVP (SPY, IWD, MTUM, QUAL, USMV).
-
-### Next Steps
-
-- [ ] Data pipeline
-- [ ] Baselines
-- [ ] Backtesting
-- [ ] MoE implementation
-
-### License
 
 MIT
