@@ -70,7 +70,7 @@ We frame this as a **probabilistic time-series forecasting** problem:
 ```bash
 # Clone
 git clone https://github.com/kira-ml/mixture-of-experts-factor-timing.git
-cd moe-factor-timing
+cd mixture-of-experts-factor-timing
 
 # Install
 pip install -r requirements.txt
