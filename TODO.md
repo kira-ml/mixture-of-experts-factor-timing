@@ -354,6 +354,52 @@ python main.py --run-all --models moe
 *Note: July 25 Sharpe ratios were identical because investment metrics used actual returns, not model-based allocations. July 26 reflects corrected methodology.
 
 ---
+## Today's TODO List (July 26, 2026)
+
+### July 26, 2026 (Day 3) - Optimization Experiments
+
+#### Immediate Tasks
+
+- [ ] **Experiment 1: Increase MoE EM Iterations (30 → 100)**
+  - [ ] Update `main.py` model_params for MoE: `'n_iterations': 100`
+  - [ ] Run backtest and compare RMSE, Sharpe vs baseline
+  - [ ] Log results to metrics tracker
+
+- [ ] **Experiment 2: Find Optimal Number of Experts (K=2, 4, 5)**
+  - [ ] Run MoE with K=2, K=4, K=5
+  - [ ] Compare Sharpe ratios and RMSE
+  - [ ] Keep only if improves over K=3 baseline
+  - [ ] Log optimal K to metrics tracker
+
+- [ ] **Experiment 3: Add Transaction Costs (0.10% per trade)**
+  - [ ] Modify `predictions_to_returns()` in `backtest.py`
+  - [ ] Apply cost deduction to portfolio returns
+  - [ ] Compare Sharpe with vs without costs
+  - [ ] Determine if MoE still outperforms baselines
+
+- [ ] **Experiment 4: Visualize Regime Probabilities**
+  - [ ] Create new notebook `notebooks/02_regime_analysis.ipynb`
+  - [ ] Extract regime probabilities from MoE using `predict_proba()`
+  - [ ] Plot regime probabilities over time
+  - [ ] Map to economic events (COVID-19, 2022 bear market, etc.)
+  - [ ] Analyze what each expert learned
+
+- [ ] **Experiment 5: Weighted Allocation Strategy** (Conditional)
+  - [ ] Only if transaction costs don't kill MoE's edge
+  - [ ] Modify `predictions_to_returns()` to weight by prediction magnitude
+  - [ ] Compare Sharpe vs equal-weight positive strategy
+
+#### Documentation & Tracking
+- [ ] Update metrics tracker with all experiment results
+- [ ] Document which optimizations improved performance
+- [ ] Revert changes that didn't add value
+- [ ] Commit working improvements to Git
+
+
+---
+
+
+
 
 ## ✨ SUCCESS CRITERIA CHECKLIST
 
