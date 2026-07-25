@@ -109,21 +109,91 @@ class DataPipeline:
         Resample daily data to monthly end-of-month prices.
         
         Args:
-            df: Daily DataFrame with 'Close' column
-            price_col: Column name for prices
+            df: Daily DataFrame with price data (may have MultiIndex columns)
+            price_col: Column name for prices (will try to find appropriate column)
             
         Returns:
-            DataFrame with monthly data
+            DataFrame with monthly data (single column 'Close')
         """
         # Ensure datetime index
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index)
         
-        # Resample to month-end and get last trading day of month
-        monthly = df.resample('M').last()
+        # Check if we have MultiIndex columns (from yfinance with multiple tickers)
+        if isinstance(df.columns, pd.MultiIndex):
+            # For MultiIndex, we need to select the first level (Close, Open, etc.)
+            # and then the ticker name
+            logger.info(f"MultiIndex columns detected: {df.columns.tolist()[:3]}...")
+            
+            # Get the first ticker symbol (the column level 1)
+            ticker = df.columns[0][1] if len(df.columns[0]) > 1 else None
+            
+            if ticker:
+                # Try to get the Close column for this ticker
+                try:
+                    # Select the Close column for this ticker
+                    close_col = (price_col, ticker)
+                    if close_col in df.columns:
+                        use_col = close_col
+                    else:
+                        # Try to find any Close column
+                        for col in df.columns:
+                            if col[0] == price_col:
+                                use_col = col
+                                break
+                        else:
+                            # Use the first column
+                            use_col = df.columns[0]
+                            logger.warning(f"No Close column found. Using '{use_col}'")
+                except Exception as e:
+                    logger.warning(f"Error accessing MultiIndex: {e}")
+                    use_col = df.columns[0]
+            else:
+                use_col = df.columns[0]
+        else:
+            # Single index columns (original behavior)
+            logger.info(f"Single index columns: {df.columns.tolist()}")
+            
+            # Find the appropriate price column
+            price_columns = ['Close', 'Adj Close', 'adj close', 'Adjusted']
+            
+            if price_col in df.columns:
+                use_col = price_col
+            else:
+                for col in price_columns:
+                    if col in df.columns:
+                        use_col = col
+                        break
+                else:
+                    use_col = df.columns[-1]
+                    logger.warning(f"No price column found. Using '{use_col}'")
         
-        # Remove rows with NaN (in case of missing data)
-        monthly = monthly.dropna(subset=[price_col])
+        logger.info(f"Using column: {use_col}")
+        
+        # Resample to month-end
+        monthly = df.resample('ME').last()
+        
+        # Check if column exists after resampling
+        if use_col not in monthly.columns:
+            logger.warning(f"Column '{use_col}' not found after resampling. Available: {monthly.columns.tolist()[:5]}")
+            # Try to find a suitable column
+            for col in monthly.columns:
+                if isinstance(col, tuple) and col[0] == price_col:
+                    use_col = col
+                    break
+                elif isinstance(col, str) and 'close' in col.lower():
+                    use_col = col
+                    break
+            else:
+                use_col = monthly.columns[0]
+                logger.info(f"Using first column: '{use_col}'")
+        
+        # Drop rows with NaN
+        monthly = monthly.dropna(subset=[use_col])
+        
+        # Keep only the price column and rename to 'Close'
+        monthly = monthly[[use_col]]
+        monthly.columns = ['Close']
         
         return monthly
     

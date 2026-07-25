@@ -98,8 +98,8 @@ Examples:
         '--models',
         type=str,
         nargs='+',
-        default=['persistence', 'rolling_avg', 'momentum', 'linear', 'rf'],
-        help='Models to run (persistence, rolling_avg, momentum, linear, rf)'
+        default=['persistence', 'rolling_avg', 'momentum', 'linear', 'rf', 'moe'],  # Add 'moe'
+        help='Models to run (persistence, rolling_avg, momentum, linear, rf, moe)'
     )
     
     # General parameters
@@ -144,6 +144,7 @@ def build_model_configs(model_names: list) -> list:
         'momentum': {'window': 12, 'decay': 0.9},
         'linear': {'standardize': True},
         'rf': {'n_estimators': 100, 'max_depth': 10, 'min_samples_split': 10},
+        'moe': {'n_experts': 3, 'n_iterations': 30, 'learning_rate': 0.01},  # Add MoE
     }
     
     for name in model_names:

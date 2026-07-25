@@ -9,6 +9,8 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
+from src.moe import SimpleMoE, create_moe
+
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -502,12 +504,15 @@ class RandomForestModel:
             return self.feature_importances_
 
 
+
+
+# Add this to the model creation function
 def create_model(model_name, **kwargs):
     """
     Factory function to create models by name.
     
     Args:
-        model_name: Name of the model ('persistence', 'rolling_avg', 'momentum', 'linear', 'rf')
+        model_name: Name of the model ('persistence', 'rolling_avg', 'momentum', 'linear', 'rf', 'moe')
         **kwargs: Model-specific parameters
         
     Returns:
@@ -519,6 +524,7 @@ def create_model(model_name, **kwargs):
         'momentum': MomentumModel,
         'linear': LinearRegressionModel,
         'rf': RandomForestModel,
+        'moe': SimpleMoE,  # Add MoE
     }
     
     model_name = model_name.lower()
