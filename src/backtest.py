@@ -137,6 +137,47 @@ def expanding_window_split(
     return splits
 
 
+
+def predictions_to_returns(
+    predictions: np.ndarray,
+    actual_returns: np.ndarray,
+    strategy: str = 'long_only_positive'
+) -> np.ndarray:
+    """
+    Convert factor predictions to portfolio returns.
+    
+    Args:
+        predictions: Predicted returns for each factor (n_samples, n_factors)
+        actual_returns: Actual returns for each factor (n_samples, n_factors)
+        strategy: Allocation strategy
+            - 'long_only_positive': Equal-weight long positions on positive predictions
+            - 'equal_weight': Equal-weight all factors (baseline)
+            
+    Returns:
+        Portfolio returns (n_samples,)
+    """
+    if strategy == 'long_only_positive':
+        # For each month, allocate equally to factors with positive predicted return
+        weights = np.where(predictions > 0, 1.0, 0.0)  # Use float dtype
+        # Normalize to sum to 1 (or 0 if no positive predictions)
+        row_sums = weights.sum(axis=1, keepdims=True)
+        weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
+        
+    elif strategy == 'equal_weight':
+        # Equal weight all factors (baseline for comparison)
+        weights = np.ones_like(predictions) / predictions.shape[1]
+        
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
+    
+    # Portfolio return = sum(weights * actual_returns)
+    portfolio_returns = np.sum(weights * actual_returns, axis=1)
+    
+    return portfolio_returns
+
+
+
+
 def run_backtest(
     X: pd.DataFrame,
     y: pd.DataFrame,
@@ -227,6 +268,12 @@ def run_backtest(
             index=all_dates,
             columns=factor_names
         )
+                # Debug: Check MoE predictions
+        if model_name == 'moe':
+            logger.info(f"MoE predictions summary: min={predictions_df.min().min():.4f}, max={predictions_df.max().max():.4f}, mean={predictions_df.mean().mean():.4f}")
+            logger.info(f"MoE positive predictions: {(predictions_df.values > 0).sum()} out of {predictions_df.size}")
+
+            
         
         actuals_df = pd.DataFrame(
             np.vstack(all_actuals),
@@ -234,12 +281,19 @@ def run_backtest(
             columns=factor_names
         )
         
+        # Calculate portfolio returns from predictions
+        portfolio_returns = predictions_to_returns(
+            predictions=predictions_df.values,
+            actual_returns=actuals_df.values,
+            strategy='long_only_positive'
+        )
+        
         # Calculate metrics
         metrics = evaluate_predictions(
             y_true=actuals_df.values,
             y_pred=predictions_df.values,
             factor_names=factor_names,
-            returns=actuals_df.mean(axis=1).values,  # Simple equal-weighted portfolio
+            returns=portfolio_returns,
             periods_per_year=12
         )
         
