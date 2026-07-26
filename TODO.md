@@ -305,6 +305,38 @@
 | USMV | 4.7839 | 2.1644 | -54.8% |
 | VIX | 35.7665 | 15.8150 | -55.8% |
 
+
+**PyTorch MoE Expanding Window Backtest Results**
+
+| Metric | SimpleMoE (Expanding) | PyTorch MoE (Expanding) | Difference |
+|--------|----------------------|-------------------------|------------|
+| **Sharpe Ratio** | **0.5060** | 0.1528 | -0.3532 |
+| **Annual Return** | **13.94%** | -6.20% | -20.14% |
+| **Volatility** | 46.86% | 56.19% | +9.33% |
+| **Max Drawdown** | **-52.29%** | -72.03% | -19.74% |
+| **Calmar Ratio** | **0.2666** | -0.0861 | -0.3527 |
+| **Win Rate** | **57.83%** | 53.52% | -4.31% |
+| **RMSE** | 15.5372 | **14.6744** | -0.8628 (better) |
+| **MAE** | 8.5034 | **8.1405** | -0.3629 (better) |
+| **Predictions** | 83 | 71 | -12 |
+
+**Per-Factor RMSE Comparison**
+
+| Factor | SimpleMoE | PyTorch MoE | Difference |
+|--------|-----------|-------------|------------|
+| SPY | 5.7351 | 5.6224 | -0.1127 (better) |
+| IWD | 5.7857 | 5.2873 | -0.4984 (better) |
+| MTUM | 6.7306 | 6.8493 | +0.1187 (worse) |
+| QUAL | 5.8954 | 5.8464 | -0.0490 (better) |
+| USMV | 4.7839 | 4.5093 | -0.2746 (better) |
+| VIX | 35.7665 | 33.6308 | -2.1357 (better) |
+
+**Key Findings:**
+- PyTorch MoE has slightly better predictive accuracy (RMSE 14.67 vs 15.54)
+- SimpleMoE significantly outperforms PyTorch MoE on investment metrics
+- Sharpe: SimpleMoE 0.506 vs PyTorch MoE 0.153
+- **Conclusion:** SimpleMoE remains the better model for investment performance
+
 **Key Findings:**
 - PyTorch MoE dramatically outperforms SimpleMoE across all investment metrics
 - Sharpe ratio improved from 0.51 to 3.14 (520% improvement)
@@ -545,6 +577,7 @@ python run_moe_torch.py --n-experts 4 --epochs 200 --hidden-size 32
 | 2026-07-26 | Linear | 14.9083 | 8.2371 | -0.0898 | -12.71% | 43.31% | -76.78% | 55.42% |
 | 2026-07-26 | RF | 13.7651 | 7.3517 | -0.2528 | -14.43% | 34.78% | -83.45% | 62.65% |
 | 2026-07-26 | MoE (K=3, iter=30) | 16.5407 | 8.9702 | **0.3793** | **0.09%** | 58.70% | -58.94% | 56.63% |
+| 2026-07-26 | PyTorch MoE (Expanding) | 14.6744 | 8.1405 | 0.1528 | -6.20% | 56.19% | -72.03% | -0.0861 | 53.52% |
 
 *Note: July 25 Sharpe ratios were identical because investment metrics used actual returns, not model-based allocations.
 
