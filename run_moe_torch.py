@@ -2,12 +2,16 @@
 """
 Standalone runner for PyTorch MoE experiment.
 Isolated from the main pipeline - uses existing data only.
-Does not affect main.py, backtest.py, or existing moe.py.
 
 Usage:
+    # Single split (default)
     python run_moe_torch.py
-    python run_moe_torch.py --epochs 100 --batch-size 16
-    python run_moe_torch.py --n-experts 3 --hidden-size 64
+    
+    # Expanding window backtest (fair comparison with SimpleMoE)
+    python run_moe_torch.py --expanding --min-train 60
+    
+    # Custom parameters
+    python run_moe_torch.py --n-experts 4 --epochs 100 --batch-size 32
 """
 
 import argparse
@@ -134,6 +138,19 @@ def parse_args():
         help='Validation data ratio (default: 0.15)'
     )
     
+    # Backtest options
+    parser.add_argument(
+        '--expanding',
+        action='store_true',
+        help='Run expanding window backtest instead of single split'
+    )
+    parser.add_argument(
+        '--min-train',
+        type=int,
+        default=60,
+        help='Minimum training size in months for expanding window (default: 60)'
+    )
+    
     # General
     parser.add_argument(
         '--seed',
@@ -155,64 +172,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def run_experiment(args):
-    """Main experiment runner."""
+def run_single_split_experiment(args, returns_df, X, y, dates, device):
+    """Run single train/val/test split experiment."""
     
-    # Set seed
-    set_seed(args.seed)
-    
-    # Device
-    if args.no_cuda:
-        device = torch.device('cpu')
-    else:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    logger.info("=" * 60)
-    logger.info("PYTORCH MOE STANDALONE EXPERIMENT")
-    logger.info("=" * 60)
-    logger.info(f"Device: {device}")
-    logger.info(f"Configuration: {vars(args)}")
-    
-    # Step 1: Load data from existing pipeline
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 1: Loading Data")
-    logger.info("=" * 60)
-    
-    returns_df, prices_df = load_processed_data()
-    
-    if returns_df is None:
-        logger.error("No data found. Run main.py --download-data first.")
-        return
-    
-    logger.info(f"Returns data: {returns_df.shape}")
-    logger.info(f"Factors: {returns_df.columns.tolist()}")
-    
-    # Step 2: Prepare features
-    logger.info("\n" + "=" * 60)
-    logger.info("STEP 2: Preparing Features")
-    logger.info("=" * 60)
-    
-    # Extract VIX as macro indicator
-    macro_df = None
-    if 'VIX' in returns_df.columns:
-        macro_df = returns_df[['VIX']]
-        logger.info("Using VIX as macro indicator")
-    else:
-        logger.info("No macro indicator found")
-    
-    # Prepare data for MoE (using same lags as main pipeline)
-    lags = [1, 3, 6, 12]
-    X, y, dates = prepare_moe_data(
-        returns_df=returns_df,
-        macro_df=macro_df,
-        seq_length=args.seq_length,
-        lags=lags
-    )
-    
-    logger.info(f"Features: {X.shape}, Targets: {y.shape}")
-    logger.info(f"Date range: {dates[0]} to {dates[-1]}")
-    
-    # Step 3: Split data (time-ordered)
     logger.info("\n" + "=" * 60)
     logger.info("STEP 3: Splitting Data (Time-Ordered)")
     logger.info("=" * 60)
@@ -309,15 +271,150 @@ def run_experiment(args):
         device=device
     )
     
+    return test_results, model, config, history
+
+
+def run_expanding_window_experiment(args, returns_df, X, y, dates, device):
+    """Run expanding window backtest."""
+    
+    logger.info("\n" + "=" * 60)
+    logger.info("STEP 3: Expanding Window Backtest")
+    logger.info("=" * 60)
+    
+    min_train_size = args.min_train
+    n = len(X)
+    n_splits = n - min_train_size - args.seq_length
+    
+    logger.info(f"Total samples: {n}")
+    logger.info(f"Min train size: {min_train_size}")
+    logger.info(f"Number of backtest windows: {n_splits}")
+    
+    # Storage for all predictions and actuals
+    all_predictions = []
+    all_actuals = []
+    all_dates = []
+    all_gating_probs = []
+    
+    from tqdm import tqdm
+    
+    for split_idx in tqdm(range(n_splits), desc="Expanding Window"):
+        train_end = min_train_size + split_idx
+        test_idx = train_end + args.seq_length
+        
+        if test_idx >= n:
+            break
+        
+        # Split data
+        X_train = X[:train_end]
+        y_train = y[:train_end]
+        X_test = X[test_idx:test_idx + 1]
+        y_test = y[test_idx:test_idx + 1]
+        test_date = dates[test_idx]
+        
+        # Create training sequences
+        from src.moe_torch.utils import create_sequences
+        
+        X_train_seq, y_train_seq = create_sequences(
+            X_train, y_train, args.seq_length
+        )
+        
+        from torch.utils.data import DataLoader, TensorDataset
+        
+        train_dataset = TensorDataset(
+            torch.FloatTensor(X_train_seq),
+            torch.FloatTensor(y_train_seq)
+        )
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True
+        )
+        
+        # Create model
+        config = MoEConfig(
+            n_experts=args.n_experts,
+            input_size=X.shape[1],
+            output_size=y.shape[1],
+            hidden_size=args.hidden_size,
+            lstm_layers=args.lstm_layers,
+            expert_hidden_layers=args.expert_hidden_layers,
+            dropout=args.dropout,
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            patience=args.patience,
+            sequence_length=args.seq_length,
+            seed=args.seed
+        )
+        
+        model = TorchMoE(
+            n_experts=config.n_experts,
+            input_size=config.input_size,
+            output_size=config.output_size,
+            hidden_size=config.hidden_size,
+            lstm_layers=config.lstm_layers,
+            expert_hidden_layers=config.expert_hidden_layers,
+            dropout=config.dropout
+        )
+        
+        # Train model
+        history = train_moe(
+            model=model,
+            train_loader=train_loader,
+            val_loader=None,  # No validation for speed
+            config=config,
+            device=device,
+            verbose=False
+        )
+        
+        # Prepare test sequence (last seq_length months before test)
+        X_test_seq = X[train_end:test_idx]
+        if len(X_test_seq) < args.seq_length:
+            continue
+        
+        X_test_seq = X_test_seq[-args.seq_length:].reshape(1, args.seq_length, -1)
+        X_test_tensor = torch.FloatTensor(X_test_seq).to(device)
+        
+        model.eval()
+        with torch.no_grad():
+            pred, gating_probs = model(X_test_tensor)
+        
+        # Store results
+        all_predictions.append(pred.cpu().numpy().flatten())
+        all_actuals.append(y_test.flatten())
+        all_dates.append(test_date)
+        all_gating_probs.append(gating_probs.cpu().numpy().flatten())
+    
+    # Combine results
+    predictions = np.array(all_predictions)
+    actuals = np.array(all_actuals)
+    gating_probs = np.array(all_gating_probs)
+    test_dates = pd.DatetimeIndex(all_dates)
+    
+    logger.info(f"Backtest complete: {len(predictions)} predictions")
+    
+    # Return results in same format as single split
+    test_results = {
+        'predictions': predictions,
+        'actuals': actuals,
+        'gating_probs': gating_probs,
+        'metrics': None  # Will be calculated later
+    }
+    
+    return test_results, None, None, None, test_dates
+
+
+def calculate_and_display_results(test_results, returns_df, args, is_expanding=False, test_dates=None):
+    """Calculate metrics and display results."""
+    
     # Get predictions and actuals
     predictions = test_results['predictions']
     actuals = test_results['actuals']
-    gating_probs = test_results['gating_probs']
     
-    # Calculate portfolio returns using magnitude-weighted allocation
+    # Calculate portfolio returns
     from src.backtest import predictions_to_returns
     
-    # Use magnitude-weighted strategy with 10 bps costs
     portfolio_returns = predictions_to_returns(
         predictions=predictions,
         actual_returns=actuals,
@@ -325,14 +422,24 @@ def run_experiment(args):
         cost_bps=10.0
     )
     
-    # Calculate investment metrics
+    # Calculate metrics
     from src.evaluation import (
+        evaluate_predictions,
         sharpe_ratio,
         annualized_return,
         annualized_volatility,
         maximum_drawdown,
         calmar_ratio,
         win_rate
+    )
+    
+    factor_names = returns_df.columns.tolist()
+    metrics = evaluate_predictions(
+        y_true=actuals,
+        y_pred=predictions,
+        factor_names=factor_names,
+        returns=portfolio_returns,
+        periods_per_year=12
     )
     
     inv_metrics = {
@@ -344,15 +451,22 @@ def run_experiment(args):
         'win_rate': win_rate(portfolio_returns),
     }
     
-    # Combine all metrics
-    metrics = test_results['metrics']
     metrics['investment'] = inv_metrics
+    test_results['metrics'] = metrics
+    test_results['portfolio_returns'] = portfolio_returns
+    test_results['investment_metrics'] = inv_metrics
     
+    # Print results
     print("\n" + "=" * 80)
-    print("PYTORCH MOE TEST RESULTS")
+    if is_expanding:
+        print("PYTORCH MOE EXPANDING WINDOW BACKTEST RESULTS")
+        print(f"Predictions: {len(predictions)}")
+        if test_dates is not None:
+            print(f"Date range: {test_dates[0]} to {test_dates[-1]}")
+    else:
+        print("PYTORCH MOE SINGLE SPLIT RESULTS")
     print("=" * 80)
     
-    # Predictive metrics
     print(f"\n[Predictive Metrics]")
     print(f"  RMSE: {metrics.get('rmse', np.nan):.4f}")
     print(f"  MAE:  {metrics.get('mae', np.nan):.4f}")
@@ -362,7 +476,6 @@ def run_experiment(args):
         for factor, factor_metrics in metrics['by_factor'].items():
             print(f"    {factor}: {factor_metrics['rmse']:.4f}")
     
-    # Investment metrics
     print(f"\n[Investment Metrics] (Magnitude-Weighted, 10 bps)")
     print(f"  Sharpe Ratio:     {inv_metrics['sharpe_ratio']:.4f}")
     print(f"  Annual Return:    {inv_metrics['annualized_return']:.2f}%")
@@ -373,58 +486,68 @@ def run_experiment(args):
     
     print("\n" + "=" * 80)
     
-    # Store for saving
-    test_results['portfolio_returns'] = portfolio_returns
-    test_results['investment_metrics'] = inv_metrics
+    return metrics, inv_metrics, portfolio_returns
+
+
+def save_results(test_results, returns_df, args, config, history, model, is_expanding=False, test_dates=None):
+    """Save results to disk."""
     
-    # Step 8: Save results
     logger.info("\n" + "=" * 60)
-    logger.info("STEP 8: Saving Results")
+    logger.info("STEP: Saving Results")
     logger.info("=" * 60)
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    if args.save:
+    if args.save and model is not None and config is not None:
         save_dir = get_results_dir() / f'torch_moe_{timestamp}'
         save_model(model, config, history, save_dir)
         logger.info(f"Model saved to {save_dir}")
     
-    # Save predictions and results
-    results_dir = get_results_dir() / f'torch_moe_predictions_{timestamp}'
+    suffix = 'expanding' if is_expanding else 'singlesplit'
+    results_dir = get_results_dir() / f'torch_moe_{suffix}_{timestamp}'
     results_dir.mkdir(parents=True, exist_ok=True)
     
-    # Convert predictions to DataFrame
+    # Save predictions
+    factor_names = returns_df.columns.tolist()
+    if test_dates is not None:
+        idx = test_dates
+    else:
+        idx = range(len(test_results['predictions']))
+    
     pred_df = pd.DataFrame(
         test_results['predictions'],
-        columns=returns_df.columns.tolist()
+        columns=factor_names,
+        index=idx
     )
     pred_df.to_csv(results_dir / 'predictions.csv')
     
     actual_df = pd.DataFrame(
         test_results['actuals'],
-        columns=returns_df.columns.tolist()
+        columns=factor_names,
+        index=idx
     )
     actual_df.to_csv(results_dir / 'actuals.csv')
     
     # Save gating probabilities
+    n_experts = test_results['gating_probs'].shape[1]
     gating_df = pd.DataFrame(
         test_results['gating_probs'],
-        columns=[f'Regime_{i+1}' for i in range(config.n_experts)]
+        columns=[f'Regime_{i+1}' for i in range(n_experts)],
+        index=idx
     )
     gating_df.to_csv(results_dir / 'gating_probs.csv')
     
     # Save portfolio returns
     portfolio_df = pd.DataFrame(
         test_results['portfolio_returns'],
-        columns=['portfolio_returns']
+        columns=['portfolio_returns'],
+        index=idx
     )
     portfolio_df.to_csv(results_dir / 'portfolio_returns.csv')
     
-    # Save investment metrics
-    inv_metrics_df = pd.DataFrame([test_results['investment_metrics']])
-    inv_metrics_df.to_csv(results_dir / 'investment_metrics.csv', index=False)
-    
     # Save combined metrics
+    inv_metrics = test_results['investment_metrics']
+    metrics = test_results['metrics']
     combined_metrics = {
         'rmse': metrics.get('rmse', np.nan),
         'mae': metrics.get('mae', np.nan),
@@ -439,6 +562,90 @@ def run_experiment(args):
     combined_df.to_csv(results_dir / 'combined_metrics.csv', index=False)
     
     logger.info(f"Results saved to {results_dir}")
+
+
+def run_experiment(args):
+    """Main experiment runner."""
+    
+    # Set seed
+    set_seed(args.seed)
+    
+    # Device
+    if args.no_cuda:
+        device = torch.device('cpu')
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    logger.info("=" * 60)
+    if args.expanding:
+        logger.info("PYTORCH MOE EXPANDING WINDOW BACKTEST")
+    else:
+        logger.info("PYTORCH MOE STANDALONE EXPERIMENT (SINGLE SPLIT)")
+    logger.info("=" * 60)
+    logger.info(f"Device: {device}")
+    logger.info(f"Configuration: {vars(args)}")
+    
+    # Step 1: Load data from existing pipeline
+    logger.info("\n" + "=" * 60)
+    logger.info("STEP 1: Loading Data")
+    logger.info("=" * 60)
+    
+    returns_df, prices_df = load_processed_data()
+    
+    if returns_df is None:
+        logger.error("No data found. Run main.py --download-data first.")
+        return
+    
+    logger.info(f"Returns data: {returns_df.shape}")
+    logger.info(f"Factors: {returns_df.columns.tolist()}")
+    
+    # Step 2: Prepare features
+    logger.info("\n" + "=" * 60)
+    logger.info("STEP 2: Preparing Features")
+    logger.info("=" * 60)
+    
+    macro_df = None
+    if 'VIX' in returns_df.columns:
+        macro_df = returns_df[['VIX']]
+        logger.info("Using VIX as macro indicator")
+    else:
+        logger.info("No macro indicator found")
+    
+    lags = [1, 3, 6, 12]
+    X, y, dates = prepare_moe_data(
+        returns_df=returns_df,
+        macro_df=macro_df,
+        seq_length=args.seq_length,
+        lags=lags
+    )
+    
+    logger.info(f"Features: {X.shape}, Targets: {y.shape}")
+    logger.info(f"Date range: {dates[0]} to {dates[-1]}")
+    
+    # Step 3: Run experiment (single split or expanding window)
+    if args.expanding:
+        test_results, model, config, history, test_dates = run_expanding_window_experiment(
+            args, returns_df, X, y, dates, device
+        )
+    else:
+        test_results, model, config, history = run_single_split_experiment(
+            args, returns_df, X, y, dates, device
+        )
+        test_dates = None
+    
+    # Step 4: Calculate and display results
+    metrics, inv_metrics, portfolio_returns = calculate_and_display_results(
+        test_results, returns_df, args, 
+        is_expanding=args.expanding,
+        test_dates=test_dates
+    )
+    
+    # Step 5: Save results
+    save_results(
+        test_results, returns_df, args, config, history, model,
+        is_expanding=args.expanding,
+        test_dates=test_dates
+    )
     
     logger.info("\n" + "=" * 60)
     logger.info("EXPERIMENT COMPLETE")

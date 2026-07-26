@@ -189,35 +189,45 @@ def train_moe(
         train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
         history['train_loss'].append(train_loss)
         
-        # Validate
-        val_loss = validate_epoch(model, val_loader, criterion, device)
-        history['val_loss'].append(val_loss)
-        
-        # Learning rate
-        current_lr = optimizer.param_groups[0]['lr']
-        history['learning_rates'].append(current_lr)
-        
-        # Scheduler
-        scheduler.step(val_loss)
-        
-        # Save best model
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_model_state = model.state_dict().copy()
-        
-        # Early stopping
-        if early_stopping(val_loss):
-            if verbose:
-                logger.info(f"Early stopping at epoch {epoch + 1}")
-            break
-        
-        # Progress
-        if verbose and epoch % 10 == 0:
-            logger.info(
-                f"Epoch {epoch + 1}/{config.epochs} - "
-                f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
-                f"LR: {current_lr:.2e}"
-            )
+        # Validate (only if val_loader is provided)
+        if val_loader is not None:
+            val_loss = validate_epoch(model, val_loader, criterion, device)
+            history['val_loss'].append(val_loss)
+            
+            # Learning rate scheduler
+            scheduler.step(val_loss)
+            
+            # Save best model
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = model.state_dict().copy()
+            
+            # Early stopping
+            if early_stopping(val_loss):
+                if verbose:
+                    logger.info(f"Early stopping at epoch {epoch + 1}")
+                break
+            
+            # Progress
+            if verbose and epoch % 10 == 0:
+                logger.info(
+                    f"Epoch {epoch + 1}/{config.epochs} - "
+                    f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
+                    f"LR: {current_lr:.2e}"
+                )
+        else:
+            # No validation - use training loss for best model tracking
+            history['val_loss'].append(train_loss)  # Store train loss as placeholder
+            if train_loss < best_val_loss:
+                best_val_loss = train_loss
+                best_model_state = model.state_dict().copy()
+            
+            # Progress (less verbose when no validation)
+            if verbose and epoch % 20 == 0:
+                logger.info(
+                    f"Epoch {epoch + 1}/{config.epochs} - "
+                    f"Train Loss: {train_loss:.4f}"
+                )
     
     # Load best model
     if best_model_state is not None:
