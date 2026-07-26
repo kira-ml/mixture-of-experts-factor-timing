@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)

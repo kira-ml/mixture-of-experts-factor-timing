@@ -22,7 +22,9 @@ from datetime import datetime
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.utils import load_processed_data, set_seed, get_results_dir
+from src.data_pipeline import load_processed_data
+from src.utils import set_seed, get_results_dir
+
 from src.moe_torch import (
     TorchMoE,
     MoEConfig,
@@ -307,20 +309,73 @@ def run_experiment(args):
         device=device
     )
     
+    # Get predictions and actuals
+    predictions = test_results['predictions']
+    actuals = test_results['actuals']
+    gating_probs = test_results['gating_probs']
+    
+    # Calculate portfolio returns using magnitude-weighted allocation
+    from src.backtest import predictions_to_returns
+    
+    # Use magnitude-weighted strategy with 10 bps costs
+    portfolio_returns = predictions_to_returns(
+        predictions=predictions,
+        actual_returns=actuals,
+        strategy='magnitude_weighted',
+        cost_bps=10.0
+    )
+    
+    # Calculate investment metrics
+    from src.evaluation import (
+        sharpe_ratio,
+        annualized_return,
+        annualized_volatility,
+        maximum_drawdown,
+        calmar_ratio,
+        win_rate
+    )
+    
+    inv_metrics = {
+        'sharpe_ratio': sharpe_ratio(portfolio_returns),
+        'annualized_return': annualized_return(portfolio_returns),
+        'annualized_volatility': annualized_volatility(portfolio_returns),
+        'maximum_drawdown': maximum_drawdown(portfolio_returns),
+        'calmar_ratio': calmar_ratio(portfolio_returns),
+        'win_rate': win_rate(portfolio_returns),
+    }
+    
+    # Combine all metrics
     metrics = test_results['metrics']
+    metrics['investment'] = inv_metrics
     
     print("\n" + "=" * 80)
     print("PYTORCH MOE TEST RESULTS")
     print("=" * 80)
-    print(f"RMSE: {metrics.get('rmse', np.nan):.4f}")
-    print(f"MAE:  {metrics.get('mae', np.nan):.4f}")
+    
+    # Predictive metrics
+    print(f"\n[Predictive Metrics]")
+    print(f"  RMSE: {metrics.get('rmse', np.nan):.4f}")
+    print(f"  MAE:  {metrics.get('mae', np.nan):.4f}")
     
     if 'by_factor' in metrics:
-        print("\nPer-factor RMSE:")
+        print("\n  Per-factor RMSE:")
         for factor, factor_metrics in metrics['by_factor'].items():
-            print(f"  {factor}: {factor_metrics['rmse']:.4f}")
+            print(f"    {factor}: {factor_metrics['rmse']:.4f}")
+    
+    # Investment metrics
+    print(f"\n[Investment Metrics] (Magnitude-Weighted, 10 bps)")
+    print(f"  Sharpe Ratio:     {inv_metrics['sharpe_ratio']:.4f}")
+    print(f"  Annual Return:    {inv_metrics['annualized_return']:.2f}%")
+    print(f"  Volatility:       {inv_metrics['annualized_volatility']:.2f}%")
+    print(f"  Max Drawdown:     {inv_metrics['maximum_drawdown']:.2f}%")
+    print(f"  Calmar Ratio:     {inv_metrics['calmar_ratio']:.4f}")
+    print(f"  Win Rate:         {inv_metrics['win_rate']:.2%}")
     
     print("\n" + "=" * 80)
+    
+    # Store for saving
+    test_results['portfolio_returns'] = portfolio_returns
+    test_results['investment_metrics'] = inv_metrics
     
     # Step 8: Save results
     logger.info("\n" + "=" * 60)
@@ -334,7 +389,7 @@ def run_experiment(args):
         save_model(model, config, history, save_dir)
         logger.info(f"Model saved to {save_dir}")
     
-    # Save predictions
+    # Save predictions and results
     results_dir = get_results_dir() / f'torch_moe_predictions_{timestamp}'
     results_dir.mkdir(parents=True, exist_ok=True)
     
@@ -357,6 +412,31 @@ def run_experiment(args):
         columns=[f'Regime_{i+1}' for i in range(config.n_experts)]
     )
     gating_df.to_csv(results_dir / 'gating_probs.csv')
+    
+    # Save portfolio returns
+    portfolio_df = pd.DataFrame(
+        test_results['portfolio_returns'],
+        columns=['portfolio_returns']
+    )
+    portfolio_df.to_csv(results_dir / 'portfolio_returns.csv')
+    
+    # Save investment metrics
+    inv_metrics_df = pd.DataFrame([test_results['investment_metrics']])
+    inv_metrics_df.to_csv(results_dir / 'investment_metrics.csv', index=False)
+    
+    # Save combined metrics
+    combined_metrics = {
+        'rmse': metrics.get('rmse', np.nan),
+        'mae': metrics.get('mae', np.nan),
+        'sharpe_ratio': inv_metrics['sharpe_ratio'],
+        'annualized_return': inv_metrics['annualized_return'],
+        'annualized_volatility': inv_metrics['annualized_volatility'],
+        'maximum_drawdown': inv_metrics['maximum_drawdown'],
+        'calmar_ratio': inv_metrics['calmar_ratio'],
+        'win_rate': inv_metrics['win_rate']
+    }
+    combined_df = pd.DataFrame([combined_metrics])
+    combined_df.to_csv(results_dir / 'combined_metrics.csv', index=False)
     
     logger.info(f"Results saved to {results_dir}")
     
