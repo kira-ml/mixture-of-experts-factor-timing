@@ -16,6 +16,7 @@ from src.data_pipeline import DataPipeline, load_processed_data
 from src.backtest import backtest_models, summarize_results, get_best_model
 from src.evaluation import format_metrics
 from src.utils import setup_logging, set_seed, get_data_dir, get_results_dir, load_default_config
+from src.visualization import analyze_moe_regimes
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -144,7 +145,7 @@ def build_model_configs(model_names: list) -> list:
         'momentum': {'window': 12, 'decay': 0.9},
         'linear': {'standardize': True},
         'rf': {'n_estimators': 100, 'max_depth': 10, 'min_samples_split': 10},
-        'moe': {'n_experts': 3, 'n_iterations': 30, 'learning_rate': 0.01},  # Add MoE
+        'moe': {'n_experts': 4, 'n_iterations': 100, 'learning_rate': 0.01},  # Add MoE
     }
     
     for name in model_names:
@@ -409,10 +410,8 @@ def main():
         if args.run_all or args.download_data:
             returns_df, prices_df = run_data_pipeline(args)
         else:
-            # Try to load existing data
             logger.info("Loading existing processed data...")
             returns_df, prices_df = load_processed_data()
-            
             if returns_df is None:
                 logger.error("No existing data found. Run with --download-data first.")
                 sys.exit(1)
@@ -430,6 +429,54 @@ def main():
             display_results(results)
             save_results(results, args)
         
+        # Step 4: Regime analysis for MoE (if available)
+        if results and 'moe' in results:
+            logger.info("=" * 60)
+            logger.info("STEP 4: Regime Analysis for MoE")
+            logger.info("=" * 60)
+            
+            # Get the fitted MoE model from the last training period
+            fitted_model = results['moe'].get('fitted_model')
+            
+            if fitted_model is not None:
+                try:
+                    # Get the feature matrix and dates from the backtest preparation
+                    # We need to re-prepare the data to get X and dates
+                    from src.backtest import prepare_backtest_data
+                    
+                    # Extract VIX as macro indicator
+                    macro_df = None
+                    if 'VIX' in returns_df.columns:
+                        macro_df = returns_df[['VIX']]
+                    
+                    # Prepare data with the same parameters used in backtest
+                    X, y, dates = prepare_backtest_data(
+                        returns_df=returns_df,
+                        macro_df=macro_df,
+                        min_train_size=args.min_train,
+                        test_size=1,
+                        lags=args.lags
+                    )
+                    
+                    # Run regime analysis
+                    save_dir = get_results_dir() / 'regime_analysis'
+                    regime_df, regime_stats = analyze_moe_regimes(
+                        model=fitted_model,
+                        X=X,
+                        returns_df=returns_df,
+                        dates=pd.DatetimeIndex(dates),
+                        save_dir=save_dir
+                    )
+                    
+                    logger.info(f"Regime analysis complete. Results saved to {save_dir}")
+                    
+                except Exception as e:
+                    logger.error(f"Regime analysis failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                logger.warning("No fitted MoE model found in results.")
+        
         logger.info("=" * 60)
         logger.info("PIPELINE COMPLETE")
         logger.info("=" * 60)
@@ -440,7 +487,6 @@ def main():
     except Exception as e:
         logger.error(f"Pipeline failed with error: {e}")
         raise
-
 
 if __name__ == "__main__":
     main()

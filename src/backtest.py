@@ -141,7 +141,8 @@ def expanding_window_split(
 def predictions_to_returns(
     predictions: np.ndarray,
     actual_returns: np.ndarray,
-    strategy: str = 'long_only_positive'
+    strategy: str = 'long_only_positive',
+    cost_bps: float = 0.0
 ) -> np.ndarray:
     """
     Convert factor predictions to portfolio returns.
@@ -151,15 +152,22 @@ def predictions_to_returns(
         actual_returns: Actual returns for each factor (n_samples, n_factors)
         strategy: Allocation strategy
             - 'long_only_positive': Equal-weight long positions on positive predictions
+            - 'magnitude_weighted': Weight long positions by prediction magnitude
             - 'equal_weight': Equal-weight all factors (baseline)
+        cost_bps: Transaction cost in basis points (e.g., 0.10 = 0.10%)
             
     Returns:
         Portfolio returns (n_samples,)
     """
     if strategy == 'long_only_positive':
         # For each month, allocate equally to factors with positive predicted return
-        weights = np.where(predictions > 0, 1.0, 0.0)  # Use float dtype
-        # Normalize to sum to 1 (or 0 if no positive predictions)
+        weights = np.where(predictions > 0, 1.0, 0.0)
+        row_sums = weights.sum(axis=1, keepdims=True)
+        weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
+        
+    elif strategy == 'magnitude_weighted':
+        # Weight by prediction magnitude (only positive values)
+        weights = np.where(predictions > 0, predictions, 0.0)
         row_sums = weights.sum(axis=1, keepdims=True)
         weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
         
@@ -173,9 +181,23 @@ def predictions_to_returns(
     # Portfolio return = sum(weights * actual_returns)
     portfolio_returns = np.sum(weights * actual_returns, axis=1)
     
+    # Apply transaction costs
+    if cost_bps > 0:
+        # Cost as decimal (e.g., 0.10 bps = 0.0010%)
+        cost_decimal = cost_bps / 10000
+        
+        # Calculate turnover: sum of absolute changes in weights
+        prev_weights = np.zeros_like(weights)
+        prev_weights[0] = 1.0 / weights.shape[1]
+        
+        turnover = np.zeros(len(weights))
+        for i in range(1, len(weights)):
+            turnover[i] = np.sum(np.abs(weights[i] - weights[i-1])) / 2
+        
+        transaction_costs = turnover * cost_decimal
+        portfolio_returns = portfolio_returns - transaction_costs
+    
     return portfolio_returns
-
-
 
 
 def run_backtest(
@@ -206,6 +228,7 @@ def run_backtest(
             - actuals: DataFrame of actual values
             - dates: List of dates
             - metrics: Dictionary of evaluation metrics
+            - fitted_model: Last fitted model (for MoE regime analysis)
     """
     n = len(X)
     n_factors = y.shape[1]
@@ -228,6 +251,7 @@ def run_backtest(
         all_predictions = []
         all_actuals = []
         all_dates = []
+        last_fitted_model = None  # Store last fitted model for regime analysis
         
         # Get splits
         splits = expanding_window_split(X, y, dates, min_train_size, test_size)
@@ -249,6 +273,10 @@ def run_backtest(
             try:
                 model.fit(X_train, y_train)
                 pred = model.predict(X_test)
+                
+                # Store last fitted model for MoE
+                if model_name == 'moe':
+                    last_fitted_model = model
                 
                 # Store predictions
                 all_predictions.append(pred)
@@ -278,8 +306,6 @@ def run_backtest(
             total = predictions_df.size
             print(f"\n[DEBUG] MoE predictions: min={min_val:.6f}, max={max_val:.6f}, mean={mean_val:.6f}")
             print(f"[DEBUG] MoE positive predictions: {pos_count} out of {total} ({pos_count/total*100:.1f}%)\n")
-
-
         
         actuals_df = pd.DataFrame(
             np.vstack(all_actuals),
@@ -291,7 +317,8 @@ def run_backtest(
         portfolio_returns = predictions_to_returns(
             predictions=predictions_df.values,
             actual_returns=actuals_df.values,
-            strategy='long_only_positive'
+            strategy='magnitude_weighted',  # Changed from 'long_only_positive'
+            cost_bps=10.0
         )
         
         # Calculate metrics
@@ -307,7 +334,8 @@ def run_backtest(
             'predictions': predictions_df,
             'actuals': actuals_df,
             'dates': all_dates,
-            'metrics': metrics
+            'metrics': metrics,
+            'fitted_model': last_fitted_model  # Store for regime analysis
         }
     
     return results
