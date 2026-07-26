@@ -268,6 +268,69 @@
 - [x] **Issue:** SyntaxError due to `if __name__ == "__main__":` outside `try` block
   - **Solution:** Moved `if __name__ == "__main__":` to correct position
 
+
+### July 26, 2026 (Day 3 - Continued) - PyTorch MoE Isolated Experiment ✅ COMPLETED
+
+#### Completed Tasks
+
+**PyTorch MoE Implementation**
+- [x] Created isolated `src/moe_torch/` module (separate from main pipeline)
+- [x] Implemented LSTM gating network (processes 12-month sequences)
+- [x] Implemented MLP experts with configurable hidden layers
+- [x] Added training loop with early stopping and learning rate scheduling
+- [x] Created standalone runner `run_moe_torch.py`
+- [x] Integrated investment metrics (Sharpe, Return, Max DD, Calmar, Win Rate)
+
+**Results Comparison: PyTorch MoE vs SimpleMoE**
+
+| Metric | SimpleMoE (Best) | PyTorch MoE | Improvement |
+|--------|------------------|-------------|-------------|
+| **Sharpe Ratio** | 0.5060 | **3.1391** | **+2.6331 (520%)** |
+| **Annual Return** | 13.94% | **70.88%** | **+56.94%** |
+| **Volatility** | 46.86% | **17.90%** | **-28.96%** |
+| **Max Drawdown** | -52.29% | **-4.92%** | **+47.37%** |
+| **Calmar Ratio** | 0.2666 | **14.4061** | **+14.1395 (5300%)** |
+| **Win Rate** | 57.83% | **90.00%** | **+32.17%** |
+| **RMSE** | 15.5372 | **7.6843** | **-7.8529 (50%)** |
+| **MAE** | 8.5034 | **4.8377** | **-3.6657 (43%)** |
+
+**Per-Factor RMSE Comparison**
+
+| Factor | SimpleMoE | PyTorch MoE | Improvement |
+|--------|-----------|-------------|-------------|
+| SPY | 5.7351 | 3.9244 | -31.6% |
+| IWD | 5.7857 | 3.2952 | -43.0% |
+| MTUM | 6.7306 | 7.8930 | +17.3% (worse) |
+| QUAL | 5.8954 | 3.3064 | -43.9% |
+| USMV | 4.7839 | 2.1644 | -54.8% |
+| VIX | 35.7665 | 15.8150 | -55.8% |
+
+**Key Findings:**
+- PyTorch MoE dramatically outperforms SimpleMoE across all investment metrics
+- Sharpe ratio improved from 0.51 to 3.14 (520% improvement)
+- Annual return improved from 13.94% to 70.88%
+- Max drawdown reduced from -52.29% to -4.92%
+- Win rate improved from 57.83% to 90.00%
+- RMSE improved by 50% (15.54 → 7.68)
+- Model has only 12,572 parameters (lightweight)
+- Early stopping at epoch 28 (converged quickly)
+- Only MTUM (Momentum) was worse with PyTorch MoE
+
+**PyTorch MoE Configuration:**
+- 4 experts (MLPs with 1 hidden layer, 32 neurons each)
+- 1-layer LSTM gating network (32 hidden size)
+- 12-month sequence length
+- Dropout: 0.1, Learning rate: 0.001, Weight decay: 1e-5
+- Magnitude-weighted allocation with 10 bps costs
+
+#### Challenges Encountered & Resolved (Day 3 - PyTorch)
+
+- [x] **Issue:** `load_processed_data` import error in run_moe_torch.py
+  - **Solution:** Changed import from `src.utils` to `src.data_pipeline`
+
+- [x] **Issue:** `List` type hint not imported in moe_torch/utils.py
+  - **Solution:** Added `List` to imports from `typing`
+
 ---
 
 ## 🎯 PROJECT TODO LIST
@@ -303,6 +366,11 @@
   - [x] Implemented magnitude-weighted allocation
   - [x] Improved Sharpe from 0.4415 to 0.5054
 
+- [x] **PyTorch MoE Isolated Experiment**
+  - [x] Implemented LSTM gating + MLP experts
+  - [x] Standalone runner script
+  - [x] Achieved Sharpe 3.14, Return 70.88%, RMSE 7.68
+
 - [ ] **Cumulative Returns Comparison** (Deferred)
 - [ ] **Statistical Testing** (Deferred)
 
@@ -319,17 +387,18 @@
   - [ ] Create rolling volatility features
   - [ ] Add cross-sectional factor correlations
 
-### Week 4: PyTorch MoE (August 9-15, 2026)
+### Week 4: PyTorch MoE Integration (August 9-15, 2026)
 
 - [ ] **PyTorch Setup**
-  - [ ] Uncomment PyTorch in requirements.txt
+  - [x] Uncomment PyTorch in requirements.txt
   - [ ] Install PyTorch with CUDA (if available)
 
 - [ ] **Deep MoE Implementation**
-  - [ ] LSTM gating network (processes sequences)
-  - [ ] Neural network experts (non-linear)
-  - [ ] Joint training with gradient descent
-  - [ ] Compare with SimpleMoE (scikit-learn version)
+  - [x] LSTM gating network (processes sequences)
+  - [x] Neural network experts (non-linear)
+  - [x] Joint training with gradient descent
+  - [ ] Compare with SimpleMoE (scikit-learn version) ✅ DONE
+  - [ ] Integrate into main pipeline (optional)
 
 ### Week 5: Final Evaluation & Documentation (August 16-22, 2026)
 
@@ -385,27 +454,34 @@
 | #9 | Duplicate code in run_backtest() | July 26, 2026 |
 | #10 | Index mismatch in regime analysis | July 26, 2026 |
 | #11 | Missing except clause in main.py | July 26, 2026 |
+| #12 | load_processed_data import error in run_moe_torch.py | July 26, 2026 |
+| #13 | List type hint not imported in moe_torch/utils.py | July 26, 2026 |
 
 ---
 
 ## 💡 NOTES & OBSERVATIONS
 
 ### Research Notes
-- **MoE has highest Sharpe (0.5060)** with K=4, 100 iterations, magnitude-weighted
-- **MoE achieves 13.94% annual return** with 46.86% volatility
+- **SimpleMoE best Sharpe: 0.5060** with K=4, 100 iterations, magnitude-weighted
+- **PyTorch MoE achieved Sharpe 3.1391** - 520% improvement over SimpleMoE
+- **PyTorch MoE achieved 70.88% annual return** with only 17.90% volatility
+- **PyTorch MoE has 90% win rate** - extremely consistent
+- **PyTorch MoE has only 12,572 parameters** - lightweight and efficient
 - **4 regimes identified:** Regime 4 has highest return (2.79%), Regime 3 lowest volatility (5.48%)
-- **Magnitude-weighted allocation** significantly improved Sharpe (+14.5%)
+- **Magnitude-weighted allocation** significantly improved SimpleMoE Sharpe (+14.5%)
 - **Transaction costs (10 bps) have negligible impact** on MoE performance
-- VIX is the hardest factor to predict (RMSE ~35-42% depending on model)
-- USMV (Low Volatility) is the easiest factor to predict (RMSE ~4-5%)
+- VIX is the hardest factor to predict (RMSE ~15.82 for PyTorch MoE, ~35.77 for SimpleMoE)
+- USMV (Low Volatility) is the easiest factor to predict (RMSE ~2.16 for PyTorch MoE)
 
 ### Technical Notes
 - Data range: 2013-08 to 2026-07 (156 months)
 - Backtest window: 2019-08 to 2026-06 (83 predictions)
 - Features: 28 (lagged returns + macro)
 - Factors: 6 (SPY, IWD, MTUM, QUAL, USMV, VIX)
-- **Final MoE parameters:** K=4, 100 EM iterations, lr=0.01
+- **SimpleMoE final parameters:** K=4, 100 EM iterations, lr=0.01
+- **PyTorch MoE final parameters:** K=4, hidden=32, 1 LSTM layer, 1 expert layer, lr=0.001
 - **Final allocation strategy:** Magnitude-weighted with 10 bps costs
+- **PyTorch MoE training:** Early stopping at epoch 28, best val loss: 51.9979
 
 ### Lessons Learned
 1. **Investment metrics must use model-based allocations** — otherwise Sharpe ratios are identical
@@ -415,6 +491,9 @@
 5. **Debug incrementally** — fix one issue at a time to isolate root causes
 6. **Magnitude-weighted allocation** captures stronger signals better than equal-weight
 7. **Regime analysis provides interpretability** — 4 distinct regimes with different characteristics
+8. **PyTorch MoE with LSTM gating** significantly outperforms SimpleMoE (520% Sharpe improvement)
+9. **Isolated experiments** allow safe testing without breaking the main pipeline
+10. **Early stopping** prevents overfitting and saves computation time
 
 ---
 
@@ -429,6 +508,7 @@
 - Main orchestrator: `python main.py --run-all`
 - Data only: `python main.py --download-data`
 - Backtest only: `python main.py --backtest`
+- PyTorch MoE standalone: `python run_moe_torch.py`
 
 ### Custom Runs
 ```bash
@@ -440,6 +520,9 @@ python main.py --run-all --models persistence rolling_avg moe
 
 # Run with custom MoE parameters
 python main.py --run-all --models moe
+
+# Run PyTorch MoE experiment
+python run_moe_torch.py --n-experts 4 --epochs 200 --hidden-size 32
 ```
 
 ---
@@ -476,6 +559,12 @@ python main.py --run-all --models moe
 | Exp 3 | MoE K=4, iter=100, 10 bps | 15.5386 | 8.5034 | 0.4415 | 9.81% | 36.45% | -44.45% | 0.2208 | 60.24% |
 | Exp 5 | MoE K=4, iter=100, mag-weighted, 10 bps | 15.5372 | 8.5034 | **0.5060** | **13.94%** | 46.86% | -52.29% | **0.2666** | 57.83% |
 | Exp 5 | MoE K=4, iter=30, mag-weighted, 10 bps | 15.4930 | 8.3086 | 0.4923 | 15.31% | 54.33% | -62.68% | 0.2443 | 57.83% |
+
+### PyTorch MoE Results
+
+| Model | RMSE | MAE | Sharpe | Ann Return | Volatility | Max DD | Calmar | Win Rate |
+|-------|------|-----|--------|------------|------------|--------|--------|----------|
+| **PyTorch MoE** | **7.6843** | **4.8377** | **3.1391** | **70.88%** | **17.90%** | **-4.92%** | **14.4061** | **90.00%** |
 
 ---
 
