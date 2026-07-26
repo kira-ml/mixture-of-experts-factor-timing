@@ -600,6 +600,56 @@ python run_moe_torch.py --n-experts 4 --epochs 200 --hidden-size 32
 | **PyTorch MoE** | **7.6843** | **4.8377** | **3.1391** | **70.88%** | **17.90%** | **-4.92%** | **14.4061** | **90.00%** |
 
 ---
+### Week 3: FRED Data Integration (July 27 - August 2, 2026) 🆕
+
+#### FRED API Setup
+- [x] Create FRED account
+- [x] Get FRED API key
+- [x] Install fredapi and python-dotenv
+- [x] Test connection (CPI download confirmed working)
+- [ ] Add FRED dependencies to requirements.txt
+
+#### Data Download & Processing
+- [ ] Download all macro series:
+  - [ ] CPI (CPIAUCSL) - Consumer Price Index
+  - [ ] Industrial Production (INDPRO)
+  - [ ] Unemployment Rate (UNRATE)
+  - [ ] Term Spread (T10Y2Y) - 10Y-2Y Treasury Spread
+  - [ ] 10-Year Treasury Rate (GS10)
+  - [ ] 2-Year Treasury Rate (GS2)
+- [ ] Resample to monthly frequency (align with factor returns)
+- [ ] Handle missing values (forward fill)
+- [ ] Create `src/fred_data.py` module
+- [ ] Save processed macro data to `data/processed/`
+
+#### Merge with Factor Data
+- [ ] Merge FRED macro data with existing factor returns
+- [ ] Align dates correctly (month-end)
+- [ ] Create expanded feature set (28 → 34+ features)
+- [ ] Validate merged data (no NaN, correct shapes)
+
+#### Re-run Backtest with FRED Features
+- [ ] Test SimpleMoE with macro features
+- [ ] Compare performance: With vs Without FRED data
+- [ ] Test PyTorch MoE with macro features (optional)
+- [ ] Document results and insights
+
+### Week 3: HMM Implementation (August 2-8, 2026)
+
+#### Hidden Markov Model
+- [ ] Implement HMM with `hmmlearn` library
+- [ ] Two-stage approach: identify regimes, then predict
+- [ ] Compare with MoE regime detection
+- [ ] Visualize HMM states vs MoE regimes
+
+#### Feature Engineering
+- [x] Add FRED macro indicators ← IN PROGRESS
+- [ ] Create rolling volatility features (12-month)
+- [ ] Add cross-sectional factor correlations
+- [ ] Create interaction features (macro × factor)
+
+
+
 
 ## ✨ SUCCESS CRITERIA CHECKLIST
 

@@ -27,3 +27,8 @@ pytest>=7.0.0
 
 # Utilities
 scipy>=1.10.0
+
+
+fredapi>=0.5.0
+pandas-datareader>=0.10.0
+python-dotenv>=1.0.0
