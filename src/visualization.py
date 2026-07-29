@@ -1,6 +1,9 @@
 """
-Visualization and analysis for MoE regime probabilities and paper-ready metrics.
-Generates plots and exports performance metrics for the mini research paper.
+Visualization for MoE Regime-Switching Factor Timing Paper.
+Generates publication-quality figures for the mini research paper.
+
+Usage:
+    python -c "from src.visualization import generate_all_figures; generate_all_figures('20260730_013120')"
 """
 
 import numpy as np
@@ -18,11 +21,13 @@ from src.utils import get_results_dir, ensure_directory
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
 # ============================================================================
-# GLOBAL ACADEMIC PLOTTING STYLE
+# PART 1: STYLE CONFIGURATION
 # ============================================================================
-def _set_academic_style():
-    """Set global Matplotlib parameters for a high-quality academic paper look."""
+
+def set_academic_style():
+    """Set publication-quality Matplotlib style."""
     plt.style.use('seaborn-v0_8-white')
     plt.rcParams.update({
         'font.family': 'serif',
@@ -42,20 +47,92 @@ def _set_academic_style():
         'savefig.dpi': 300,
         'savefig.bbox': 'tight',
         'axes.grid': True,
-        'grid.alpha': 0.4,
+        'grid.alpha': 0.3,
         'grid.linewidth': 0.8,
     })
 
-_set_academic_style()
 
-# High-contrast, colorblind-friendly palette (Tableau 10)
-COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
-BEST_COLOR = '#2ca02c'  # Green for best
-WORST_COLOR = '#d62728' # Red for worst
-NEUTRAL_COLOR = '#1f77b4' # Blue for middle
+set_academic_style()
+
+# Color palette (colorblind-friendly)
+COLORS = {
+    'moe': '#2ca02c',          # Green
+    'momentum': '#ff7f0e',     # Orange
+    'rolling_avg': '#1f77b4',  # Blue
+    'linear': '#9467bd',       # Purple
+    'rf': '#8c564b',           # Brown
+    'persistence': '#d62728',  # Red
+}
+
+REGIME_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+
+BEST_COLOR = '#2ca02c'
+WORST_COLOR = '#d62728'
+NEUTRAL_COLOR = '#1f77b4'
+
+MODEL_ORDER = ['moe', 'momentum', 'rolling_avg', 'linear', 'rf', 'persistence']
+
 
 # ============================================================================
-# ORIGINAL REGIME ANALYSIS FUNCTIONS (KEPT UNCHANGED)
+# PART 2: DATA LOADING
+# ============================================================================
+
+def load_data(timestamp: str) -> Dict:
+    """
+    Load all data for a given timestamp.
+    
+    Args:
+        timestamp: Run timestamp (e.g., '20260730_013120')
+        
+    Returns:
+        Dict with keys: summary, config, predictions, portfolio_returns
+    """
+    results_dir = get_results_dir()
+    
+    # Load summary
+    summary_path = results_dir / f'summary_{timestamp}.csv'
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Summary not found: {summary_path}")
+    summary_df = pd.read_csv(summary_path, index_col=0)
+    
+    # Load config
+    config_path = results_dir / f'config_{timestamp}.json'
+    config = {}
+    if config_path.exists():
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    
+    # Load predictions and portfolio returns
+    pred_dir = results_dir / 'predictions' / timestamp
+    predictions_dict = {}
+    portfolio_returns_dict = {}
+    
+    if pred_dir.exists():
+        for model in MODEL_ORDER:
+            pred_file = pred_dir / f'{model}_predictions.csv'
+            actual_file = pred_dir / f'{model}_actuals.csv'
+            port_file = pred_dir / f'{model}_portfolio_returns.csv'
+            
+            if pred_file.exists() and actual_file.exists():
+                preds = pd.read_csv(pred_file, index_col=0, parse_dates=True)
+                actuals = pd.read_csv(actual_file, index_col=0, parse_dates=True)
+                predictions_dict[model] = {'predictions': preds, 'actuals': actuals}
+            
+            if port_file.exists():
+                port_df = pd.read_csv(port_file, index_col=0, parse_dates=True)
+                portfolio_returns_dict[model] = port_df['portfolio_returns']
+    
+    return {
+        'summary': summary_df,
+        'config': config,
+        'predictions': predictions_dict,
+        'portfolio_returns': portfolio_returns_dict,
+        'timestamp': timestamp
+    }
+
+
+# ============================================================================
+# PART 3: REGIME ANALYSIS (From fitted MoE model)
 # ============================================================================
 
 def extract_regime_data(model, X: pd.DataFrame, dates: pd.DatetimeIndex) -> pd.DataFrame:
@@ -77,7 +154,6 @@ def analyze_regime_characteristics(regime_df: pd.DataFrame, returns_df: pd.DataF
     common_idx = regime_df.index.intersection(returns_df.index)
     
     if len(common_idx) == 0:
-        logger.warning("No overlapping indices between regime_df and returns_df")
         for i in range(n_regimes):
             regime_col = f'Regime_{i+1}'
             stats[regime_col] = {'frequency': 0, 'avg_return': np.nan, 'avg_volatility': np.nan, 'avg_prob': 0, 'n_periods': 0}
@@ -102,161 +178,61 @@ def analyze_regime_characteristics(regime_df: pd.DataFrame, returns_df: pd.DataF
     return stats
 
 
-def plot_regime_probabilities(regime_df: pd.DataFrame, returns_df: pd.DataFrame, save_dir: Path) -> None:
-    """Plot regime probabilities over time (Stacked Area and Dominant Regime)."""
-    ensure_directory(save_dir)
-    regime_cols = [col for col in regime_df.columns if col.startswith('Regime_')]
-    colors = COLORS[:len(regime_cols)]
-    
-    # Stacked area plot
-    fig, ax = plt.subplots(figsize=(14, 6))
-    ax.stackplot(regime_df.index, [regime_df[col] for col in regime_cols], 
-                 labels=[f'Regime {i+1}' for i in range(len(regime_cols))], 
-                 colors=colors, alpha=0.85)
-    ax.set_xlabel('Date'); ax.set_ylabel('Probability')
-    ax.set_title('MoE Regime Probabilities Over Time', fontweight='bold')
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), frameon=False)
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_ylim(0, 1)
-    plt.tight_layout(); plt.savefig(save_dir / 'regime_probabilities.png'); plt.close()
-    
-    # Dominant regime scatter plot
-    fig, ax = plt.subplots(figsize=(14, 4))
-    dominant = regime_df['dominant_regime']
-    colors_map = {i+1: colors[i % len(colors)] for i in range(len(regime_cols))}
-    
-    # Add small jitter for Y-axis readability
-    for regime in sorted(dominant.unique()):
-        mask = dominant == regime
-        y_vals = np.ones(mask.sum()) * regime + np.random.normal(0, 0.03, mask.sum())
-        ax.scatter(regime_df.index[mask], y_vals, color=colors_map[regime], s=10, alpha=0.8, label=f'Regime {regime}', edgecolors='white')
-    
-    ax.set_xlabel('Date'); ax.set_ylabel('Dominant Regime')
-    ax.set_title('Dominant Regime Over Time', fontweight='bold')
-    ax.set_yticks(list(colors_map.keys())); ax.set_ylim(0.5, len(colors_map)+0.5)
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), frameon=False)
-    plt.tight_layout(); plt.savefig(save_dir / 'dominant_regime.png'); plt.close()
-    logger.info(f"Regime figures saved to {save_dir}")
-
-
-def print_regime_summary(stats: Dict) -> None:
-    """Print regime summary to console."""
-    print("\n" + "=" * 70); print("REGIME CHARACTERISTICS SUMMARY"); print("=" * 70)
-    for regime, data in stats.items():
-        print(f"\n{regime}:")
-        print(f"  Frequency:        {data['frequency']:.2%}")
-        print(f"  Number of periods: {data['n_periods']}")
-        print(f"  Avg Return:       {data['avg_return']:.2f}%")
-        print(f"  Avg Volatility:   {data['avg_volatility']:.2f}%")
-        print(f"  Avg Probability:  {data['avg_prob']:.2%}")
-
-
-def save_regime_summary(stats: Dict, save_path: Path) -> None:
-    """Save regime summary to CSV."""
-    df = pd.DataFrame(stats).T
-    df.index.name = 'regime'
-    df.to_csv(save_path)
-    logger.info(f"Regime summary saved to {save_path}")
-
-
 def analyze_moe_regimes(model, X: pd.DataFrame, returns_df: pd.DataFrame, dates: pd.DatetimeIndex, save_dir: Optional[Path] = None) -> Tuple[pd.DataFrame, Dict]:
     """Complete regime analysis pipeline."""
     regime_df = extract_regime_data(model, X, dates)
     regime_stats = analyze_regime_characteristics(regime_df, returns_df)
-    print_regime_summary(regime_stats)
+    
     if save_dir:
         ensure_directory(save_dir)
         regime_df.to_csv(save_dir / 'regime_probabilities.csv')
-        save_regime_summary(regime_stats, save_dir / 'regime_summary.csv')
-        plot_regime_probabilities(regime_df, returns_df, save_dir / 'figures')
+        df = pd.DataFrame(regime_stats).T
+        df.index.name = 'regime'
+        df.to_csv(save_dir / 'regime_summary.csv')
+    
     return regime_df, regime_stats
 
 
 # ============================================================================
-# NEW PAPER-READY VISUALIZATION FUNCTIONS
+# PART 4: PAPER FIGURES
 # ============================================================================
 
-def load_results_from_timestamp(timestamp: str) -> Dict:
-    results_dir = get_results_dir()
-    summary_path = results_dir / f'summary_{timestamp}.csv'
-    if not summary_path.exists():
-        raise FileNotFoundError(f"Summary file not found: {summary_path}")
-    summary_df = pd.read_csv(summary_path, index_col=0)
-    
-    config_path = results_dir / f'config_{timestamp}.json'
-    config = {}
-    if config_path.exists():
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-    
-    pred_dir = results_dir / 'predictions' / timestamp
-    predictions_dict = {}
-    if pred_dir.exists():
-        for model in ['moe', 'rolling_avg', 'linear', 'rf', 'momentum', 'persistence']:
-            pred_file = pred_dir / f'{model}_predictions.csv'
-            actual_file = pred_dir / f'{model}_actuals.csv'
-            if pred_file.exists() and actual_file.exists():
-                # --- FIX: Force proper DatetimeIndex with monthly frequency ---
-                preds_df = pd.read_csv(pred_file, index_col=0, parse_dates=True)
-                actuals_df = pd.read_csv(actual_file, index_col=0, parse_dates=True)
-                
-                # Convert index to DatetimeIndex with monthly frequency
-                preds_df.index = pd.to_datetime(preds_df.index)
-                actuals_df.index = pd.to_datetime(actuals_df.index)
-                
-                # Ensure frequency is set to month end
-                if not isinstance(preds_df.index, pd.DatetimeIndex):
-                    preds_df.index = pd.DatetimeIndex(preds_df.index)
-                if not isinstance(actuals_df.index, pd.DatetimeIndex):
-                    actuals_df.index = pd.DatetimeIndex(actuals_df.index)
-                
-                # Force monthly frequency (ME = Month End)
-                preds_df = preds_df.asfreq('ME')
-                actuals_df = actuals_df.asfreq('ME')
-                
-                predictions_dict[model] = {
-                    'predictions': preds_df,
-                    'actuals': actuals_df
-                }
-        return {'summary': summary_df, 'predictions': predictions_dict, 'config': config, 'timestamp': timestamp}
-
-
-
-
-def plot_model_comparison(summary_df: pd.DataFrame, save_dir: Path) -> None:
-    """Generate academic bar charts comparing all models."""
+def plot_model_comparison(data: Dict, save_dir: Path) -> None:
+    """
+    Figure 1: Model comparison bar chart.
+    Shows Sharpe, Return, Drawdown, Calmar, Win Rate, RMSE.
+    """
     ensure_directory(save_dir)
+    summary_df = data['summary']
     
     metrics = ['sharpe', 'ann_return', 'max_drawdown', 'calmar', 'win_rate', 'rmse']
     titles = ['Sharpe Ratio', 'Annualized Return (%)', 'Max Drawdown (%)', 'Calmar Ratio', 'Win Rate', 'RMSE']
     ylabels = ['Sharpe', 'Return (%)', 'Drawdown (%)', 'Calmar', 'Win Rate', 'RMSE']
-    ascending_sort = [False, False, True, False, False, True]  # True = lower is better (Drawdown, RMSE)
+    ascending = [False, False, True, False, False, True]
     
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
     axes = axes.flatten()
     
-    for i, (metric, title, ylabel, asc) in enumerate(zip(metrics, titles, ylabels, ascending_sort)):
+    for i, (metric, title, ylabel, asc) in enumerate(zip(metrics, titles, ylabels, ascending)):
         ax = axes[i]
+        data_series = summary_df[metric].sort_values(ascending=asc)
         
-        # Sort data logically
-        if asc:
-            data = summary_df[metric].sort_values(ascending=True)
-        else:
-            data = summary_df[metric].sort_values(ascending=False)
-            
-        # Color scheme: Best=Green, Worst=Red, Rest=Blue
+        # Color: Best=Green, Worst=Red, Rest=Blue
         colors = []
-        for idx, val in enumerate(data.values):
-            if idx == 0: colors.append(BEST_COLOR)
-            elif idx == len(data) - 1: colors.append(WORST_COLOR)
-            else: colors.append(NEUTRAL_COLOR)
+        for idx, val in enumerate(data_series.values):
+            if idx == 0:
+                colors.append(BEST_COLOR)
+            elif idx == len(data_series) - 1:
+                colors.append(WORST_COLOR)
+            else:
+                colors.append(NEUTRAL_COLOR)
         
-        bars = ax.bar(data.index, data.values, color=colors, edgecolor='white', linewidth=0.5, zorder=3)
+        bars = ax.bar(data_series.index, data_series.values, color=colors, edgecolor='white', linewidth=0.5, zorder=3)
         ax.set_title(title, fontweight='bold', fontsize=12)
         ax.set_ylabel(ylabel)
         ax.tick_params(axis='x', rotation=45)
         
-        # Add value labels with smaller font
+        # Value labels
         for bar in bars:
             height = bar.get_height()
             va = 'bottom' if height > 0 else 'top'
@@ -267,21 +243,89 @@ def plot_model_comparison(summary_df: pd.DataFrame, save_dir: Path) -> None:
     plt.tight_layout()
     plt.savefig(save_dir / 'model_comparison.png')
     plt.close()
-    logger.info(f"Model comparison figure saved to {save_dir / 'model_comparison.png'}")
+    logger.info(f"Figure 1 saved: {save_dir / 'model_comparison.png'}")
 
 
-def plot_per_factor_rmse(predictions_dict: Dict, save_dir: Path) -> None:
+def plot_cumulative_returns(data: Dict, save_dir: Path) -> None:
     """
-    Generate a HEATMAP showing RMSE by factor for each model.
-    Heatmaps are far more aesthetic and compact for academic ML papers than 36-bar charts.
+    Figure 2: Cumulative returns comparison.
+    Shows MoE vs Rolling Average vs Equal-Weight.
     """
     ensure_directory(save_dir)
     
+    portfolio_returns = data['portfolio_returns']
+    
+    # Get returns for each model
+    moe_returns = portfolio_returns.get('moe')
+    rolling_returns = portfolio_returns.get('rolling_avg')
+    
+    if moe_returns is None or rolling_returns is None:
+        logger.warning("Portfolio returns not found. Skipping cumulative returns plot.")
+        return
+    
+    # Convert percentage to decimal if needed
+    def to_decimal(series):
+        if series is None:
+            return None
+        if np.nanmax(np.abs(series.values)) > 1.5:
+            return series / 100.0
+        return series
+    
+    moe_returns = to_decimal(moe_returns)
+    rolling_returns = to_decimal(rolling_returns)
+    
+    # Equal-weight: average of all factors from actuals
+    actuals = data['predictions'].get('moe', {}).get('actuals')
+    if actuals is not None:
+        equal_returns = np.nanmean(actuals.values, axis=1)
+        equal_returns = to_decimal(pd.Series(equal_returns, index=actuals.index))
+    else:
+        equal_returns = None
+    
+    # Cumulative products
+    moe_cum = (1 + moe_returns).cumprod()
+    rolling_cum = (1 + rolling_returns).cumprod()
+    
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(moe_cum.index, moe_cum, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
+    ax.plot(rolling_cum.index, rolling_cum, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
+    
+    if equal_returns is not None:
+        equal_cum = (1 + equal_returns).cumprod()
+        ax.plot(equal_cum.index, equal_cum, label='Equal-Weight (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
+    
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Cumulative Return (Starting at 1.0)')
+    ax.set_title('Cumulative Returns Comparison (Out-of-Sample)', fontweight='bold')
+    ax.legend(loc='upper left', frameon=True, fancybox=True)
+    
+    # Dynamic y-axis
+    all_vals = [moe_cum, rolling_cum]
+    if equal_returns is not None:
+        all_vals.append(equal_cum)
+    max_val = max([v.max() for v in all_vals])
+    ax.set_ylim(0, max_val * 1.1)
+    
+    plt.tight_layout()
+    plt.savefig(save_dir / 'cumulative_returns.png')
+    plt.close()
+    logger.info(f"Figure 2 saved: {save_dir / 'cumulative_returns.png'}")
+
+
+def plot_per_factor_rmse(data: Dict, save_dir: Path) -> None:
+    """
+    Figure 3: Per-factor RMSE heatmap.
+    Shows which factors are hard/easy to predict for each model.
+    """
+    ensure_directory(save_dir)
+    
+    predictions = data['predictions']
     factor_rmse = {}
-    for model_name, data in predictions_dict.items():
-        preds = data['predictions'].values
-        actuals = data['actuals'].values
-        factors = data['predictions'].columns.tolist()
+    
+    for model_name, model_data in predictions.items():
+        preds = model_data['predictions'].values
+        actuals = model_data['actuals'].values
+        factors = model_data['predictions'].columns.tolist()
         
         rmse_list = []
         for i in range(preds.shape[1]):
@@ -290,284 +334,202 @@ def plot_per_factor_rmse(predictions_dict: Dict, save_dir: Path) -> None:
         factor_rmse[model_name] = rmse_list
     
     df = pd.DataFrame(factor_rmse, index=factors)
-    
-    # Sort rows/cols for better readability
     df = df.reindex(df.mean(axis=1).sort_values().index, axis=0)
     df = df.reindex(df.mean(axis=0).sort_values().index, axis=1)
     
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.heatmap(df, annot=True, fmt='.2f', cmap='RdYlGn_r', ax=ax, 
                 linewidths=0.5, cbar_kws={'label': 'RMSE'})
-    ax.set_title('Per-Factor RMSE by Model (Heatmap)', fontweight='bold', fontsize=12)
-    ax.set_xlabel('Model'); ax.set_ylabel('Factor')
+    ax.set_title('Per-Factor RMSE by Model', fontweight='bold', fontsize=12)
+    ax.set_xlabel('Model')
+    ax.set_ylabel('Factor')
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
     plt.savefig(save_dir / 'per_factor_rmse.png')
     plt.close()
-    logger.info(f"Per-factor RMSE heatmap saved to {save_dir / 'per_factor_rmse.png'}")
+    logger.info(f"Figure 3 saved: {save_dir / 'per_factor_rmse.png'}")
 
 
-def plot_cumulative_returns_comparison(
-    predictions_dict: Dict, 
-    save_dir: Path, 
-    timestamp: str  # <--- Added explicit timestamp argument
-) -> None:
-    """Fixed cumulative returns plot with data validation and full 2019-2026 timeline."""
+def plot_rmse_vs_sharpe(data: Dict, save_dir: Path) -> None:
+    """
+    Figure 4: RMSE vs Sharpe scatter plot.
+    Shows trade-off between predictive accuracy and investment performance.
+    """
     ensure_directory(save_dir)
     
-    # --- FIX: Use the explicit timestamp passed as an argument ---
-    moe_portfolio_path = None
-    rolling_portfolio_path = None
+    summary_df = data['summary']
     
-    if timestamp is not None:
-        moe_portfolio_path = Path(get_results_dir()) / 'predictions' / timestamp / 'moe_portfolio_returns.csv'
-        rolling_portfolio_path = Path(get_results_dir()) / 'predictions' / timestamp / 'rolling_avg_portfolio_returns.csv'
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Load MoE portfolio returns (keep as Series with DatetimeIndex if available)
-    if moe_portfolio_path is not None and moe_portfolio_path.exists():
-        logger.info(f"Loading MoE portfolio returns from {moe_portfolio_path}")
-        moe_df = pd.read_csv(moe_portfolio_path, index_col=0, parse_dates=True)
-        moe_series = moe_df['portfolio_returns'].astype(float)
-        # If values look like percentages (e.g., 11.7 -> 11.7%), convert to decimal
-        if np.nanmax(np.abs(moe_series.values)) > 1.5:
-            logger.info("Detected percent-scale in MoE portfolio returns; converting to decimals.")
-            moe_series = moe_series / 100.0
-    else:
-        logger.warning("MoE portfolio returns not found. Falling back to reconstruction.")
-        moe_series = None
+    # Scatter
+    for model in summary_df.index:
+        rmse = summary_df.loc[model, 'rmse']
+        sharpe = summary_df.loc[model, 'sharpe']
+        color = BEST_COLOR if model == 'moe' else NEUTRAL_COLOR
+        ax.scatter(rmse, sharpe, s=120, color=color, zorder=3, edgecolors='white', linewidth=1.5)
+        ax.annotate(model, (rmse, sharpe), xytext=(5, 5), textcoords='offset points', fontsize=10, fontweight='bold')
+    
+    ax.set_xlabel('RMSE (Predictive Accuracy)', fontsize=12)
+    ax.set_ylabel('Sharpe Ratio (Investment Performance)', fontsize=12)
+    ax.set_title('RMSE vs Sharpe: Predictive Accuracy vs Investment Performance', fontweight='bold', fontsize=12)
+    ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_dir / 'rmse_vs_sharpe.png')
+    plt.close()
+    logger.info(f"Figure 4 saved: {save_dir / 'rmse_vs_sharpe.png'}")
 
-    # Load Rolling Average portfolio returns (keep as Series with DatetimeIndex if available)
-    if rolling_portfolio_path is not None and rolling_portfolio_path.exists():
-        logger.info(f"Loading Rolling Average portfolio returns from {rolling_portfolio_path}")
-        rolling_df = pd.read_csv(rolling_portfolio_path, index_col=0, parse_dates=True)
-        rolling_series = rolling_df['portfolio_returns'].astype(float)
-        # If values look like percentages, convert to decimal
-        if np.nanmax(np.abs(rolling_series.values)) > 1.5:
-            logger.info("Detected percent-scale in Rolling Average portfolio returns; converting to decimals.")
-            rolling_series = rolling_series / 100.0
-    else:
-        logger.warning("Rolling Average portfolio returns not found. Falling back to reconstruction.")
-        rolling_series = None
-    
-    # Equal-Weight is always reconstructed from actuals (no portfolio returns file for it)
-    # Preserve the original datetime index from the actuals DataFrame
-    if 'moe' in predictions_dict and 'actuals' in predictions_dict['moe']:
-        actuals_df = predictions_dict['moe']['actuals']
-        equal_series = pd.Series(np.nanmean(actuals_df.values, axis=1), index=actuals_df.index)
-        # Convert percent-scale actuals to decimals if needed
-        if np.nanmax(np.abs(equal_series.values)) > 1.5:
-            logger.info("Detected percent-scale in actuals for equal-weight; converting to decimals.")
-            equal_series = equal_series / 100.0
-    else:
-        equal_series = None
-    
-    # --- FALLBACK: Reconstruct from predictions if files are missing ---
-    if moe_series is None or rolling_series is None:
-        logger.warning("Reconstructing portfolio returns from predictions (may be flat).")
-        def get_portfolio_returns(model_name):
-            if model_name not in predictions_dict: 
-                return None
-            preds = predictions_dict[model_name]['predictions'].values
-            actuals = predictions_dict[model_name]['actuals'].values
-            if preds.size == 0 or actuals.size == 0:
-                return np.zeros(83)
-            if np.isnan(preds).any() or np.isnan(actuals).any():
-                preds = np.nan_to_num(preds, nan=0.0)
-                actuals = np.nan_to_num(actuals, nan=0.0)
-            # If predictions/actuals are in percent scale, convert to decimals
-            if np.nanmax(np.abs(preds)) > 1.5 or np.nanmax(np.abs(actuals)) > 1.5:
-                logger.info(f"Detected percent-scale in {model_name} preds/actuals; converting to decimals.")
-                preds = preds / 100.0
-                actuals = actuals / 100.0
-            preds = np.clip(preds, -1.0, 1.0)
-            actuals = np.clip(actuals, -1.0, 1.0)
-            weights = np.where(preds > 0, preds, 0.0)
-            row_sums = weights.sum(axis=1, keepdims=True)
-            weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
-            returns = np.sum(weights * actuals, axis=1)
-            cost_decimal = 10 / 10000
-            prev_weights = np.zeros_like(weights)
-            prev_weights[0] = 1.0 / weights.shape[1]
-            turnover = np.zeros(len(weights))
-            for i in range(1, len(weights)):
-                turnover[i] = np.sum(np.abs(weights[i] - weights[i-1])) / 2
-            transaction_costs = turnover * cost_decimal
-            returns = returns - transaction_costs
-            returns = np.clip(returns, -0.5, 0.5)
-            return returns
-        
-        if moe_series is None:
-            moe_series = get_portfolio_returns('moe')
-        if rolling_series is None:
-            rolling_series = get_portfolio_returns('rolling_avg')
-    
-    # --- Force the correct number of predictions (83 months) ---
-    n_predictions = 83  # Your known backtest length (2019-08 to 2026-07)
-    start_date = pd.Timestamp('2019-08-31')  # Your backtest start date
-    full_dates = pd.date_range(start=start_date, periods=n_predictions, freq='ME')
 
-    # Helper: convert various return inputs to a Series indexed by full_dates, filling missing returns with 0.0
-    def to_aligned_series(series_like):
-        if series_like is None:
-            return pd.Series(0.0, index=full_dates)
-        # If passed a numpy array without index, assume it aligns to the tail and create a Series
-        if isinstance(series_like, (np.ndarray, list)):
-            # If length matches full_dates, use directly; otherwise, right-align the values (assume tail data)
-            arr = np.asarray(series_like)
-            # If values appear to be in percent, convert to decimals
-            if np.nanmax(np.abs(arr)) > 1.5:
-                arr = arr / 100.0
-            if arr.size == len(full_dates):
-                return pd.Series(arr, index=full_dates).fillna(0.0)
-            # Right-align: pad left with zeros
-            pad_len = max(0, len(full_dates) - arr.size)
-            padded = np.concatenate([np.zeros(pad_len), arr])
-            return pd.Series(padded, index=full_dates).fillna(0.0)
-        # Otherwise assume it's a Pandas Series with a DatetimeIndex
-        s = series_like.copy()
-        s.index = pd.to_datetime(s.index)
-        s = s.reindex(full_dates).fillna(0.0)
-        return s
-
-    moe_aligned = to_aligned_series(moe_series)
-    rolling_aligned = to_aligned_series(rolling_series)
-    equal_aligned = to_aligned_series(equal_series)
-
-    # --- Calculate cumulative products (start at 1.0) as Pandas Series ---
-    moe_cum = (1 + moe_aligned).cumprod()
-    rolling_cum = (1 + rolling_aligned).cumprod()
-    equal_cum = (1 + equal_aligned).cumprod()
+def plot_regime_probabilities(regime_df: pd.DataFrame, save_dir: Path) -> None:
+    """
+    Figure 5: Regime probabilities stacked area chart.
+    """
+    ensure_directory(save_dir)
+    regime_cols = [col for col in regime_df.columns if col.startswith('Regime_')]
+    colors = REGIME_COLORS[:len(regime_cols)]
     
-    # Forward-fill the cumulative products to bridge gaps
-    moe_cum = moe_cum.ffill().fillna(1.0)
-    rolling_cum = rolling_cum.ffill().fillna(1.0)
-    equal_cum = equal_cum.ffill().fillna(1.0)
-    
-    # --- FINAL VALIDATION ---
-    if moe_cum.max() > 1e6:
-        logger.warning(f"MoE cumulative return capped at 1e6 to prevent scaling issues.")
-        moe_cum = moe_cum.clip(upper=1e6)
-    
-    # Plot
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.plot(full_dates, moe_cum, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
-    ax.plot(full_dates, rolling_cum, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
-    ax.plot(full_dates, equal_cum, label='Equal-Weight Portfolio (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
+    ax.stackplot(regime_df.index, [regime_df[col] for col in regime_cols], 
+                 labels=[f'Regime {i+1}' for i in range(len(regime_cols))], 
+                 colors=colors, alpha=0.85)
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Probability')
+    ax.set_title('MoE Regime Probabilities Over Time', fontweight='bold')
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), frameon=False)
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.set_ylim(0, 1)
+    plt.tight_layout()
+    plt.savefig(save_dir / 'regime_probabilities.png')
+    plt.close()
+    logger.info(f"Figure 5 saved: {save_dir / 'regime_probabilities.png'}")
+
+
+def plot_dominant_regime(regime_df: pd.DataFrame, save_dir: Path) -> None:
+    """
+    Figure 6: Dominant regime over time.
+    """
+    ensure_directory(save_dir)
+    regime_cols = [col for col in regime_df.columns if col.startswith('Regime_')]
+    colors = REGIME_COLORS[:len(regime_cols)]
+    
+    fig, ax = plt.subplots(figsize=(14, 4))
+    dominant = regime_df['dominant_regime']
+    colors_map = {i+1: colors[i % len(colors)] for i in range(len(regime_cols))}
+    
+    for regime in sorted(dominant.unique()):
+        mask = dominant == regime
+        y_vals = np.ones(mask.sum()) * regime + np.random.normal(0, 0.03, mask.sum())
+        ax.scatter(regime_df.index[mask], y_vals, color=colors_map[regime], 
+                   s=10, alpha=0.8, label=f'Regime {regime}', edgecolors='white')
     
     ax.set_xlabel('Date')
-    ax.set_ylabel('Cumulative Return (Starting at 1.0)')
-    ax.set_title('Cumulative Returns Comparison (Out-of-Sample)', fontweight='bold')
-    ax.legend(loc='upper left', frameon=True, fancybox=True)
-    ax.yaxis.set_major_formatter(mtick.ScalarFormatter())
-    ax.set_ylim(0, max(moe_cum.max(), rolling_cum.max(), equal_cum.max()) * 1.1)
-    
+    ax.set_ylabel('Dominant Regime')
+    ax.set_title('Dominant Regime Over Time', fontweight='bold')
+    ax.set_yticks(list(colors_map.keys()))
+    ax.set_ylim(0.5, len(colors_map) + 0.5)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), frameon=False)
     plt.tight_layout()
-    plt.savefig(save_dir / 'cumulative_returns.png')
+    plt.savefig(save_dir / 'dominant_regime.png')
     plt.close()
-    logger.info(f"Cumulative returns figure saved to {save_dir / 'cumulative_returns.png'}")
+    logger.info(f"Figure 6 saved: {save_dir / 'dominant_regime.png'}")
 
 
-def plot_training_window_sensitivity(save_dir: Path) -> None:
-    """Plot training window sensitivity with academic styling."""
+def plot_regime_characteristics(regime_stats: Dict, save_dir: Path) -> None:
+    """
+    Figure 7: Regime characteristics scatter plot (Return vs Volatility).
+    """
     ensure_directory(save_dir)
     
-    data = {
-        'min_train': [60, 84, 96, 108, 120, 132],
-        'sharpe': [0.7253, 1.2153, 1.4790, 1.3056, 1.7878, 1.7620],
-        'return': [0.35, 41.45, 40.32, 39.24, 63.23, 90.42],
-        'max_dd': [-44.41, -27.47, -13.74, -13.74, -13.74, -7.07]
-    }
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(regime_stats).T
+    df = df.dropna()
     
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Sharpe
-    axes[0].plot(df['min_train'], df['sharpe'], marker='o', markersize=6, linewidth=2, color=NEUTRAL_COLOR)
-    axes[0].fill_between(df['min_train'], df['sharpe'], alpha=0.15, color=NEUTRAL_COLOR)
-    axes[0].set_xlabel('Minimum Training Months'); axes[0].set_ylabel('Sharpe Ratio')
-    axes[0].set_title('Training Window Sensitivity: Sharpe', fontweight='bold')
+    for i, row in df.iterrows():
+        size = row['frequency'] * 1000 + 100
+        ax.scatter(row['avg_volatility'], row['avg_return'], 
+                   s=size, color=REGIME_COLORS[int(i.split('_')[1]) - 1], 
+                   alpha=0.7, edgecolors='black', linewidth=1, zorder=3)
+        ax.annotate(i, (row['avg_volatility'], row['avg_return']), 
+                    xytext=(5, 5), textcoords='offset points', fontsize=11, fontweight='bold')
     
-    # Return
-    axes[1].plot(df['min_train'], df['return'], marker='o', markersize=6, linewidth=2, color=BEST_COLOR)
-    axes[1].fill_between(df['min_train'], df['return'], alpha=0.15, color=BEST_COLOR)
-    axes[1].set_xlabel('Minimum Training Months'); axes[1].set_ylabel('Annualized Return (%)')
-    axes[1].set_title('Training Window Sensitivity: Return', fontweight='bold')
-    
-    # Max Drawdown (inverted so -7% is visually higher than -44%)
-    axes[2].plot(df['min_train'], df['max_dd'] * -1, marker='o', markersize=6, linewidth=2, color=WORST_COLOR)
-    axes[2].fill_between(df['min_train'], df['max_dd'] * -1, alpha=0.15, color=WORST_COLOR)
-    axes[2].set_xlabel('Minimum Training Months'); axes[2].set_ylabel('Max Drawdown (Absolute %)')
-    axes[2].set_title('Training Window Sensitivity: Max Drawdown', fontweight='bold')
-    
+    ax.set_xlabel('Average Volatility (%)', fontsize=12)
+    ax.set_ylabel('Average Return (%)', fontsize=12)
+    ax.set_title('Regime Characteristics: Return vs Volatility', fontweight='bold', fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(save_dir / 'training_window_sensitivity.png')
+    plt.savefig(save_dir / 'regime_characteristics.png')
     plt.close()
-    logger.info(f"Training window sensitivity figure saved to {save_dir / 'training_window_sensitivity.png'}")
+    logger.info(f"Figure 7 saved: {save_dir / 'regime_characteristics.png'}")
 
 
-def plot_vix_vs_fred_comparison(save_dir: Path) -> None:
-    """Plot VIX vs FRED comparison with academic styling."""
+def generate_paper_summary_table(data: Dict, save_dir: Path) -> None:
+    """Save summary table for the paper."""
     ensure_directory(save_dir)
-    
-    data = {
-        'Feature Set': ['VIX-only', 'FRED-enhanced'],
-        'Sharpe': [1.7620, 0.4609],
-        'Annual Return (%)': [90.42, 11.03],
-        'Max Drawdown (%)': [-7.07, -37.64]
-    }
-    df = pd.DataFrame(data)
-    colors = [BEST_COLOR, WORST_COLOR]
-    
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    
-    # Sharpe
-    axes[0].bar(df['Feature Set'], df['Sharpe'], color=colors, edgecolor='white', linewidth=1.5, zorder=3)
-    axes[0].set_ylabel('Sharpe Ratio'); axes[0].set_title('VIX vs FRED: Sharpe Ratio', fontweight='bold')
-    
-    # Return
-    axes[1].bar(df['Feature Set'], df['Annual Return (%)'], color=colors, edgecolor='white', linewidth=1.5, zorder=3)
-    axes[1].set_ylabel('Annual Return (%)'); axes[1].set_title('VIX vs FRED: Return', fontweight='bold')
-    
-    # Max Drawdown
-    axes[2].bar(df['Feature Set'], df['Max Drawdown (%)'], color=colors, edgecolor='white', linewidth=1.5, zorder=3)
-    axes[2].set_ylabel('Max Drawdown (%)'); axes[2].set_title('VIX vs FRED: Max Drawdown', fontweight='bold')
-    
-    plt.tight_layout()
-    plt.savefig(save_dir / 'vix_vs_fred_comparison.png')
-    plt.close()
-    logger.info(f"VIX vs FRED comparison figure saved to {save_dir / 'vix_vs_fred_comparison.png'}")
-
-
-def generate_paper_summary_table(summary_df: pd.DataFrame, save_dir: Path) -> None:
-    ensure_directory(save_dir)
-    paper_df = summary_df.copy().round(4)
+    summary_df = data['summary']
+    paper_df = summary_df.round(4)
     save_path = save_dir / 'paper_summary_table.csv'
     paper_df.to_csv(save_path)
-    logger.info(f"Paper summary table saved to {save_path}")
+    logger.info(f"Summary table saved: {save_path}")
 
 
-def generate_all_paper_plots(timestamp: str, output_dir: Optional[Path] = None) -> None:
-    logger.info(f"Generating paper plots for timestamp: {timestamp}")
-    data = load_results_from_timestamp(timestamp)
-    summary_df = data['summary']
-    predictions_dict = data['predictions']
+# ============================================================================
+# PART 5: ORCHESTRATOR
+# ============================================================================
+
+def generate_all_figures(timestamp: str, output_dir: Optional[Path] = None) -> None:
+    """
+    Generate all paper figures for a given timestamp.
     
+    Args:
+        timestamp: Run timestamp (e.g., '20260730_013120')
+        output_dir: Optional output directory
+    """
+    logger.info(f"Generating paper figures for timestamp: {timestamp}")
+    
+    # Load data
+    data = load_data(timestamp)
+    
+    # Set output directory
     if output_dir is None:
         output_dir = get_results_dir() / 'paper_figures' / timestamp
     ensure_directory(output_dir)
     
-    logger.info(f"Saving all paper figures to: {output_dir}")
-    plot_model_comparison(summary_df, output_dir)
-    plot_per_factor_rmse(predictions_dict, output_dir)
-    # Pass the timestamp explicitly to the cumulative returns plot
-    plot_cumulative_returns_comparison(predictions_dict, output_dir, timestamp)
-    plot_training_window_sensitivity(output_dir)
-    plot_vix_vs_fred_comparison(output_dir)
-    generate_paper_summary_table(summary_df, output_dir)
-    logger.info(f"All paper plots generated successfully in {output_dir}")
+    logger.info(f"Saving figures to: {output_dir}")
+    
+    # Generate figures
+    plot_model_comparison(data, output_dir)
+    plot_cumulative_returns(data, output_dir)
+    plot_per_factor_rmse(data, output_dir)
+    plot_rmse_vs_sharpe(data, output_dir)
+    generate_paper_summary_table(data, output_dir)
+    
+    # Regime figures (if regime data exists)
+    regime_dir = get_results_dir() / 'regime_analysis'
+    if regime_dir.exists():
+        regime_df_path = regime_dir / 'regime_probabilities.csv'
+        regime_summary_path = regime_dir / 'regime_summary.csv'
+        if regime_df_path.exists():
+            regime_df = pd.read_csv(regime_df_path, index_col=0, parse_dates=True)
+            plot_regime_probabilities(regime_df, output_dir)
+            plot_dominant_regime(regime_df, output_dir)
+        if regime_summary_path.exists():
+            regime_stats = pd.read_csv(regime_summary_path, index_col=0).to_dict(orient='index')
+            plot_regime_characteristics(regime_stats, output_dir)
+    
+    logger.info(f"All figures generated successfully in {output_dir}")
 
+
+# ============================================================================
+# MAIN
+# ============================================================================
 
 if __name__ == "__main__":
-    # generate_all_paper_plots('20260729_222829')
-    print("Visualization module updated with high-end academic paper-ready functions.")
-    print("Run: generate_all_paper_plots('YOUR_TIMESTAMP') to generate all figures.")
+    print("=" * 60)
+    print("MoE Factor Timing - Visualization Module")
+    print("=" * 60)
+    print("\nUsage:")
+    print("  python -c \"from src.visualization import generate_all_figures; generate_all_figures('TIMESTAMP')\"")
+    print("\nExample:")
+    print("  python -c \"from src.visualization import generate_all_figures; generate_all_figures('20260730_013120')\"")
+    print("\n" + "=" * 60)
