@@ -209,6 +209,7 @@ def train_moe(
                 break
             
             # Progress
+            current_lr = optimizer.param_groups[0]['lr']
             if verbose and epoch % 10 == 0:
                 logger.info(
                     f"Epoch {epoch + 1}/{config.epochs} - "
