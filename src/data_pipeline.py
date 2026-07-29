@@ -371,6 +371,18 @@ class DataPipeline:
         return returns_df, prices_df
 
 
+
+    def load_fred_data(self, add_transforms: bool = True) -> pd.DataFrame:
+        """Load FRED macroeconomic data."""
+        from src.fred_data import load_fred_data
+        return load_fred_data(
+            start_date=self.start_date,
+            end_date=self.end_date,
+            use_cache=True,
+            add_transforms=add_transforms
+        )
+
+
 def load_processed_data():
     """
     Load previously processed data from CSV files.

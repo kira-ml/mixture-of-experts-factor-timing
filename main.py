@@ -208,13 +208,25 @@ def run_backtest_pipeline(args, returns_df: pd.DataFrame) -> dict:
     logger.info("STEP 2: Backtest")
     logger.info("=" * 60)
     
-    # Extract VIX as macro indicator (if available)
+    # Load FRED data (if available)
     macro_df = None
-    if 'VIX' in returns_df.columns:
-        macro_df = returns_df[['VIX']]
-        logger.info("Using VIX as macro indicator")
-    else:
-        logger.info("No macro indicator found (VIX column missing)")
+    fred_df = None
+
+    try:
+        from src.fred_data import load_fred_data
+        fred_df = load_fred_data(
+            start_date=args.start_date,
+            end_date=args.end_date,
+            use_cache=True,
+            add_transforms=True
+        )
+        logger.info(f"Loaded FRED data: {fred_df.shape[1]} series")
+        macro_df = fred_df
+    except Exception as e:
+        logger.warning(f"FRED data not available: {e}. Falling back to VIX.")
+        if 'VIX' in returns_df.columns:
+            macro_df = returns_df[['VIX']]
+            logger.info("Using VIX as macro indicator")
     
     # Build model configurations
     model_configs = build_model_configs(args.models)
