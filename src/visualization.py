@@ -293,6 +293,8 @@ def plot_cumulative_returns(data: Dict, save_dir: Path) -> None:
     def to_decimal(series):
         if series is None:
             return None
+        # Force conversion to numeric, coercing errors to NaN
+        series = pd.to_numeric(series, errors='coerce')
         if np.nanmax(np.abs(series.values)) > 1.5:
             return series / 100.0
         return series
@@ -332,12 +334,23 @@ def plot_cumulative_returns(data: Dict, save_dir: Path) -> None:
     ax.set_title('Cumulative Returns Comparison (Out-of-Sample)', fontweight='bold')
     ax.legend(loc='upper left', frameon=True, fancybox=True)
     
-    # Dynamic y-axis
+    # Dynamic y-axis - with safety check for NaN/Inf
     all_vals = [moe_cum, rolling_cum]
     if equal_returns is not None:
         all_vals.append(equal_cum)
-    max_val = max([v.max() for v in all_vals])
-    ax.set_ylim(0, max_val * 1.1)
+    
+    # Calculate max_val safely
+    max_val = -np.inf
+    for v in all_vals:
+        curr_max = v.max()
+        if not np.isnan(curr_max) and not np.isinf(curr_max):
+            max_val = max(max_val, curr_max)
+    
+    # Only set ylim if we have a valid max_val
+    if not np.isnan(max_val) and not np.isinf(max_val):
+        ax.set_ylim(0, max_val * 1.1)
+    else:
+        logger.warning("No valid cumulative return data found. Skipping y-axis limits.")
     
     plt.tight_layout()
     plt.savefig(save_dir / 'cumulative_returns.png')
@@ -345,6 +358,7 @@ def plot_cumulative_returns(data: Dict, save_dir: Path) -> None:
     logger.info(f"Figure 2 saved: {save_dir / 'cumulative_returns.png'}")
 
 
+    
 def plot_per_factor_rmse(data: Dict, save_dir: Path) -> None:
     """
     Figure 3: Per-factor RMSE heatmap.

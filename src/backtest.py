@@ -348,12 +348,13 @@ def run_backtest(
             columns=factor_names
         )
         
-        # Combine portfolio returns
+        # Portfolio returns DataFrame (for evaluation)
         portfolio_returns_df = pd.DataFrame(
-            np.vstack(all_portfolio_returns),
-            index=all_dates,
-            columns=['portfolio_returns']
+            {'portfolio_returns': all_portfolio_returns},
+            index=all_dates
         )
+        # Drop any rows where returns are NaN (no prediction made)
+        portfolio_returns_df = portfolio_returns_df.dropna()
         
         # Calculate metrics
         metrics = evaluate_predictions(
@@ -458,15 +459,21 @@ def summarize_results(
     for model_name, model_results in results.items():
         metrics = model_results['metrics']
         
+        # Helper to safely extract scalar from numpy array or list
+        def extract_scalar(val):
+            if isinstance(val, (np.ndarray, list)):
+                return float(val[0]) if len(val) > 0 else np.nan
+            return val
+        
         summary[model_name] = {
             'rmse': metrics.get('rmse', np.nan),
             'mae': metrics.get('mae', np.nan),
-            'sharpe': metrics.get('investment', {}).get('sharpe_ratio', np.nan),
-            'ann_return': metrics.get('investment', {}).get('annualized_return', np.nan),
-            'volatility': metrics.get('investment', {}).get('annualized_volatility', np.nan),
-            'max_drawdown': metrics.get('investment', {}).get('maximum_drawdown', np.nan),
-            'calmar': metrics.get('investment', {}).get('calmar_ratio', np.nan),
-            'win_rate': metrics.get('investment', {}).get('win_rate', np.nan),
+            'sharpe': extract_scalar(metrics.get('investment', {}).get('sharpe_ratio', np.nan)),
+            'ann_return': extract_scalar(metrics.get('investment', {}).get('annualized_return', np.nan)),
+            'volatility': extract_scalar(metrics.get('investment', {}).get('annualized_volatility', np.nan)),
+            'max_drawdown': extract_scalar(metrics.get('investment', {}).get('maximum_drawdown', np.nan)),
+            'calmar': extract_scalar(metrics.get('investment', {}).get('calmar_ratio', np.nan)),
+            'win_rate': extract_scalar(metrics.get('investment', {}).get('win_rate', np.nan)),
         }
     
     df = pd.DataFrame(summary).T
@@ -538,6 +545,10 @@ def get_best_model(
             if value > best_value:
                 best_value = value
                 best_model = model_name
+    
+    # Convert numpy array to scalar float if necessary
+    if isinstance(best_value, np.ndarray):
+        best_value = best_value.item()
     
     return best_model, best_value
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 import numpy as np
+from typing import Dict
 
 # Import project modules
 from src.data_pipeline import DataPipeline, load_processed_data
@@ -255,80 +256,75 @@ def run_backtest_pipeline(args, returns_df: pd.DataFrame) -> dict:
     return results
 
 
-def display_results(results: dict) -> None:
-    """
-    Display backtest results in a readable format.
-    
-    Args:
-        results: Backtest results dictionary
-    """
-    logger.info("=" * 60)
-    logger.info("RESULTS SUMMARY")
-    logger.info("=" * 60)
-    
-    # Generate summary DataFrame
+def display_results(results):
+    """Display backtest results in a formatted table."""
     summary = summarize_results(results)
     
-    # Display summary
     print("\n" + "=" * 80)
     print("MODEL COMPARISON SUMMARY")
     print("=" * 80)
-    print(summary.round(4).to_string())
+    print(summary.round(4))
     
-    # Find best models
     print("\n" + "-" * 80)
     print("BEST PERFORMING MODELS")
     print("-" * 80)
     
-    # Best by Sharpe
-    best_sharpe_model, best_sharpe = get_best_model(results, 'sharpe_ratio')
-    print(f"Best Sharpe Ratio:    {best_sharpe_model} ({best_sharpe:.4f})")
+    # Helper to safely extract scalar values
+    def _fmt(val, decimals=4):
+        """Convert numpy array/list to float and format."""
+        if isinstance(val, (np.ndarray, list)):
+            if len(val) > 0:
+                val = float(val[0])
+            else:
+                val = np.nan
+        return f"{val:.{decimals}f}" if not np.isnan(val) else "NaN"
     
-    # Best by Calmar
-    best_calmar_model, best_calmar = get_best_model(results, 'calmar_ratio')
-    print(f"Best Calmar Ratio:    {best_calmar_model} ({best_calmar:.4f})")
+    # Best Sharpe
+    best_sharpe_model, best_sharpe = get_best_model(results, 'sharpe')
+    print(f"Best Sharpe Ratio:    {best_sharpe_model or 'None'} ({_fmt(best_sharpe)})")
     
-    # Best by RMSE (lower is better)
+    # Best Calmar
+    best_calmar_model, best_calmar = get_best_model(results, 'calmar')
+    print(f"Best Calmar Ratio:    {best_calmar_model or 'None'} ({_fmt(best_calmar)})")
+    
+    # Best RMSE
     best_rmse_model, best_rmse = get_best_model(results, 'rmse')
-    print(f"Lowest RMSE:          {best_rmse_model} ({best_rmse:.4f})")
+    print(f"Lowest RMSE:          {best_rmse_model or 'None'} ({_fmt(best_rmse)})")
     
-    # Best by Annual Return
-    best_return_model, best_return = get_best_model(results, 'annualized_return')
-    print(f"Best Annual Return:   {best_return_model} ({best_return:.2f}%)")
+    # Best Return
+    best_return_model, best_return = get_best_model(results, 'ann_return')
+    print(f"Best Annual Return:   {best_return_model or 'None'} ({_fmt(best_return)}%)")
     
-    # Best by Win Rate
-    best_win_model, best_win = get_best_model(results, 'win_rate')
-    print(f"Best Win Rate:        {best_win_model} ({best_win:.2%})")
+    # Best Win Rate
+    best_wr_model, best_wr = get_best_model(results, 'win_rate')
+    print(f"Best Win Rate:        {best_wr_model or 'None'} ({_fmt(best_wr)})")
     
     print("\n" + "=" * 80)
-    
-    # Detailed per-model metrics
-    print("\nDETAILED METRICS BY MODEL")
-    print("-" * 80)
+    print("DETAILED METRICS BY MODEL")
+    print("=" * 80)
     
     for model_name, model_results in results.items():
-        metrics = model_results['metrics']
         print(f"\n{model_name.upper()}:")
+        metrics = model_results['metrics']
         
-        # Predictive metrics
-        print(f"  RMSE: {metrics.get('rmse', np.nan):.4f}")
-        print(f"  MAE:  {metrics.get('mae', np.nan):.4f}")
+        print(f"  RMSE: {_fmt(metrics.get('rmse', np.nan))}")
+        print(f"  MAE:  {_fmt(metrics.get('mae', np.nan))}")
         
-        # Per-factor metrics
-        if 'by_factor' in metrics:
+        # Per-factor RMSE
+        if 'per_factor_rmse' in metrics:
             print("  Per-factor RMSE:")
-            for factor, factor_metrics in metrics['by_factor'].items():
-                print(f"    {factor}: {factor_metrics['rmse']:.4f}")
+            for factor, rmse in metrics['per_factor_rmse'].items():
+                print(f"    {factor}: {_fmt(rmse)}")
         
         # Investment metrics
-        if 'investment' in metrics:
-            inv = metrics['investment']
-            print(f"  Sharpe:       {inv.get('sharpe_ratio', np.nan):.4f}")
-            print(f"  Return:       {inv.get('annualized_return', np.nan):.2f}%")
-            print(f"  Volatility:   {inv.get('annualized_volatility', np.nan):.2f}%")
-            print(f"  Max Drawdown: {inv.get('maximum_drawdown', np.nan):.2f}%")
-            print(f"  Calmar:       {inv.get('calmar_ratio', np.nan):.4f}")
-            print(f"  Win Rate:     {inv.get('win_rate', np.nan):.2%}")
+        inv = metrics.get('investment', {})
+        if inv:
+            print(f"  Sharpe:       {_fmt(inv.get('sharpe_ratio', np.nan))}")
+            print(f"  Return:       {_fmt(inv.get('annualized_return', np.nan))}%")
+            print(f"  Volatility:   {_fmt(inv.get('annualized_volatility', np.nan))}%")
+            print(f"  Max Drawdown: {_fmt(inv.get('maximum_drawdown', np.nan))}%")
+            print(f"  Calmar:       {_fmt(inv.get('calmar_ratio', np.nan))}")
+            print(f"  Win Rate:     {_fmt(inv.get('win_rate', np.nan))}")
 
 
 def save_results(results: dict, args) -> None:
