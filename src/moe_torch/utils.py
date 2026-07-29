@@ -42,8 +42,8 @@ class TimeSeriesDataset(Dataset):
         # Validate
         if len(self.X) != len(self.y):
             raise ValueError("X and y must have same length")
-        if len(self.X) <= seq_length:
-            raise ValueError(f"Not enough data: {len(self.X)} <= {seq_length}")
+        if len(self.X) < seq_length:
+            raise ValueError(f"Not enough data: {len(self.X)} < {seq_length}")
     
     def __len__(self) -> int:
         return len(self.X) - self.seq_length
