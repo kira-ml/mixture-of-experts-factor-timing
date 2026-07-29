@@ -323,24 +323,28 @@ def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -
     rolling_cum = (1 + rolling_returns).cumprod()
     equal_cum = (1 + equal_returns).cumprod()
     
+    # Align all series to the full dates index and forward-fill missing values
+    moe_cum_aligned = moe_cum.reindex(dates).fillna(method='ffill')
+    rolling_cum_aligned = rolling_cum.reindex(dates).fillna(method='ffill')
+    equal_cum_aligned = equal_cum.reindex(dates).fillna(method='ffill')
+    
     # Plot
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.plot(dates, moe_cum, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
-    ax.plot(dates, rolling_cum, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
-    ax.plot(dates, equal_cum, label='Equal-Weight Portfolio (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
+    ax.plot(dates, moe_cum_aligned, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
+    ax.plot(dates, rolling_cum_aligned, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
+    ax.plot(dates, equal_cum_aligned, label='Equal-Weight Portfolio (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
     
     ax.set_xlabel('Date')
     ax.set_ylabel('Cumulative Return (Starting at 1.0)')
     ax.set_title('Cumulative Returns Comparison (Out-of-Sample)', fontweight='bold')
     ax.legend(loc='upper left', frameon=True, fancybox=True)
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.set_ylim(0, moe_cum.max() * 1.1)
+    ax.yaxis.set_major_formatter(mtick.ScalarFormatter())
+    ax.set_ylim(0, moe_cum_aligned.max() * 1.1)
     
     plt.tight_layout()
     plt.savefig(save_dir / 'cumulative_returns.png')
     plt.close()
     logger.info(f"Cumulative returns figure saved to {save_dir / 'cumulative_returns.png'}")
-
 
 def plot_training_window_sensitivity(save_dir: Path) -> None:
     """Plot training window sensitivity with academic styling."""
