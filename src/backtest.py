@@ -121,6 +121,11 @@ def expanding_window_split(
     n = len(X)
     splits = []
     
+    # Ensure we have enough data for at least one split
+    if n - min_train_size - test_size + 1 <= 0:
+        logger.warning(f"Not enough data for backtest: n={n}, min_train={min_train_size}, test_size={test_size}")
+        return splits
+    
     for test_start in range(min_train_size, n - test_size + 1):
         # Train: from start to test_start - 1
         train_indices = list(range(0, test_start))
@@ -255,6 +260,18 @@ def run_backtest(
         
         # Get splits
         splits = expanding_window_split(X, y, dates, min_train_size, test_size)
+        
+        # Check if we have any splits
+        if len(splits) == 0:
+            logger.warning(f"No backtest splits available for {model_name}. Skipping.")
+            results[model_name] = {
+                'predictions': pd.DataFrame(columns=factor_names),
+                'actuals': pd.DataFrame(columns=factor_names),
+                'dates': [],
+                'metrics': {},
+                'fitted_model': None
+            }
+            continue
         
         for split_idx in iterator:
             train_idx = splits[split_idx]['train_idx']

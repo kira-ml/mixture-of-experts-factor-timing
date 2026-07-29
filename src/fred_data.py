@@ -105,6 +105,11 @@ class FredLoader:
         # Drop any rows that still have NaN (unlikely after ffill)
         df = df.dropna()
         
+        # If we have less than 60 months of data, warn but return what we have
+        if len(df) < 60:
+            logger.warning(f"Only {len(df)} months of FRED data available. Some series may have limited history.")
+            logger.warning(f"Consider starting the backtest later or using VIX fallback.")
+        
         logger.info(f"Loaded {len(df)} months of FRED data from {df.index[0]} to {df.index[-1]}")
         
         return df

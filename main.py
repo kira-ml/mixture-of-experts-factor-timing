@@ -220,8 +220,17 @@ def run_backtest_pipeline(args, returns_df: pd.DataFrame) -> dict:
             use_cache=True,
             add_transforms=True
         )
-        logger.info(f"Loaded FRED data: {fred_df.shape[1]} series")
-        macro_df = fred_df
+        
+        # Check if FRED data has enough history for the backtest
+        # We need at least min_train_size months of data
+        if len(fred_df) >= args.min_train:
+            logger.info(f"Loaded FRED data: {fred_df.shape[1]} series, {len(fred_df)} months")
+            macro_df = fred_df
+        else:
+            logger.warning(f"FRED data only has {len(fred_df)} months (< {args.min_train} required). Falling back to VIX.")
+            if 'VIX' in returns_df.columns:
+                macro_df = returns_df[['VIX']]
+                logger.info("Using VIX as macro indicator")
     except Exception as e:
         logger.warning(f"FRED data not available: {e}. Falling back to VIX.")
         if 'VIX' in returns_df.columns:
@@ -453,15 +462,32 @@ def main():
             if fitted_model is not None:
                 try:
                     # Get the feature matrix and dates from the backtest preparation
-                    # We need to re-prepare the data to get X and dates
                     from src.backtest import prepare_backtest_data
                     
-                    # Extract VIX as macro indicator
+                    # Load the SAME macro data used in backtest
                     macro_df = None
-                    if 'VIX' in returns_df.columns:
-                        macro_df = returns_df[['VIX']]
+                    fred_df = None
+                    try:
+                        from src.fred_data import load_fred_data
+                        fred_df = load_fred_data(
+                            start_date=args.start_date,
+                            end_date=args.end_date,
+                            use_cache=True,
+                            add_transforms=True
+                        )
+                        if len(fred_df) >= args.min_train:
+                            macro_df = fred_df
+                            logger.info("Using FRED data for regime analysis")
+                        else:
+                            if 'VIX' in returns_df.columns:
+                                macro_df = returns_df[['VIX']]
+                                logger.info("Using VIX for regime analysis (FRED insufficient)")
+                    except Exception as e:
+                        if 'VIX' in returns_df.columns:
+                            macro_df = returns_df[['VIX']]
+                            logger.info("Using VIX for regime analysis (FRED not available)")
                     
-                    # Prepare data with the same parameters used in backtest
+                    # Prepare data with the SAME macro_df used in backtest
                     X, y, dates = prepare_backtest_data(
                         returns_df=returns_df,
                         macro_df=macro_df,
