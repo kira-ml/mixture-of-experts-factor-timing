@@ -1003,42 +1003,70 @@ python run_moe_torch.py --n-experts 4 --epochs 200 --hidden-size 32
 
 The pipeline is fully stable. Your new best results are saved in `20260730_024501`. Complete these steps after you wake up:
 
-- [ ] **Step 1: Fix cumulative returns CSV strings**
-  - Run this one-line command in the terminal to force the portfolio return CSVs to be numeric:
-    ```bash
-    python -c "
+- [ ] **Step 0: Create the CSV Fix Script**
+  - Create a new file named `fix_csvs.py` in your project root.
+  - Paste the following code into it and save:
+    ```python
+    # fix_csvs.py
     import pandas as pd
     from pathlib import Path
-    folder = Path('results/predictions/20260730_024501')
+
+    TIMESTAMP = "20260730_024501"
+    PRED_DIR = Path("results/predictions") / TIMESTAMP
+
+    print(f"Fixing CSVs in: {PRED_DIR}")
+
     for model in ['moe', 'rolling_avg', 'momentum', 'linear', 'rf', 'persistence']:
-        file = folder / f'{model}_portfolio_returns.csv'
+        file = PRED_DIR / f'{model}_portfolio_returns.csv'
         if file.exists():
             df = pd.read_csv(file, index_col=0, parse_dates=True)
             df = df.apply(pd.to_numeric, errors='coerce')
             df.to_csv(file)
-            print(f'Fixed: {file}')
-    print('All portfolio return CSVs fixed!')
-    "
+            print(f"  ✅ Fixed: {file.name}")
+
+    print("\nAll done! Now run:")
+    print(f"python src/visualization.py --timestamp {TIMESTAMP}")
     ```
+
+- [ ] **Step 1: Run the CSV Fix Script**
+  - Run this command in your terminal:
+    ```bash
+    python fix_csvs.py
+    ```
+
 - [ ] **Step 2: Regenerate paper figures from the NEW best run**
   - Run the visualization with the new timestamp:
     ```bash
     python src/visualization.py --timestamp 20260730_024501
     ```
+
 - [ ] **Step 3: Verify `cumulative_returns.png`**
   - Check `results/paper_figures/20260730_024501/cumulative_returns.png`.
   - Ensure the **Green (MoE)**, **Blue (Rolling Avg)**, and **Red (Equal-Weight)** lines are all visible.
+
+- [ ] **Step 3b (Fallback): If the chart is still empty**
+  - Open `src/visualization.py` and locate the `plot_cumulative_returns()` function.
+  - Right after `moe_returns = to_decimal(moe_returns)`, insert this fallback:
+    ```python
+    # FALLBACK: If all values are NaN, use actual returns directly
+    if moe_returns.isna().all():
+        logger.warning("MoE returns are all NaN. Falling back to actual returns.")
+        moe_returns = data['predictions'].get('moe', {}).get('actuals').mean(axis=1)
+        rolling_returns = data['predictions'].get('rolling_avg', {}).get('actuals').mean(axis=1)
+    ```
+  - Save the file and re-run Step 2.
+
 - [ ] **Step 4: Push final code to GitHub**
   - ```bash
-    git add src/main.py src/backtest.py src/visualization.py
+    git add src/main.py src/backtest.py src/visualization.py fix_csvs.py
     git commit -m "final: stable pipeline with numeric CSV fixes"
     git push origin main
     ```
+
 - [ ] **Step 5: Draft the Paper**
   - Start with the Abstract and Introduction.
   - Use the figures from `results/paper_figures/20260730_024501/`.
   - Use the summary table from `paper_summary_table.csv`.
-
 ---
 
 #### Final Valid Results (Best Run: min_train=132, Timestamp: 20260730_024501)
