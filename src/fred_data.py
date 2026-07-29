@@ -62,11 +62,15 @@ class FredLoader:
         
         data = {}
         
+        # Fetch with buffer to ensure we have data before the start date
+        buffer_start = pd.to_datetime(start_date) - pd.DateOffset(years=2)
+        buffer_start_str = buffer_start.strftime('%Y-%m-%d')
+        
         for series_id in series_ids:
             try:
                 series = self.fred.get_series(
                     series_id,
-                    observation_start=start_date,
+                    observation_start=buffer_start_str,
                     observation_end=end_date
                 )
                 data[series_id] = series
@@ -80,19 +84,26 @@ class FredLoader:
         # Combine into DataFrame
         df = pd.DataFrame(data)
         
-        # Resample to month-end (already monthly for most series)
-        # But ensure we use the last day of each month
+        # Ensure datetime index
         df.index = pd.to_datetime(df.index)
         
-        # Some series are daily - resample to month-end
+        # Resample to month-end (some series may be daily)
         if df.index.freq is None:
             df = df.resample('ME').last()
+        elif df.index.freq.name != 'ME':
+            df = df.resample('ME').last()
         
-        # Drop NaN at start (some series start later)
-        df = df.dropna()
+        # Forward-fill missing values (some series may start later)
+        df = df.ffill()
+        
+        # Drop rows that are completely NaN (series that never started)
+        df = df.dropna(how='all')
         
         # Ensure we have data in the requested range
         df = df.loc[start_date:end_date]
+        
+        # Drop any rows that still have NaN (unlikely after ffill)
+        df = df.dropna()
         
         logger.info(f"Loaded {len(df)} months of FRED data from {df.index[0]} to {df.index[-1]}")
         
