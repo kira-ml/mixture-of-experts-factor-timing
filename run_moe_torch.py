@@ -168,6 +168,23 @@ def parse_args():
         action='store_true',
         help='Save trained model to disk'
     )
+
+
+    # Data parameters
+    parser.add_argument(
+        '--start-date',
+        type=str,
+        default='2020-01-01',
+        help='Start date for FRED data (YYYY-MM-DD)'
+    )
+    parser.add_argument(
+        '--end-date',
+        type=str,
+        default=None,
+        help='End date for FRED data (YYYY-MM-DD), defaults to today'
+    )
+
+    
     
     return parser.parse_args()
 
@@ -605,11 +622,27 @@ def run_experiment(args):
     logger.info("=" * 60)
     
     macro_df = None
-    if 'VIX' in returns_df.columns:
-        macro_df = returns_df[['VIX']]
-        logger.info("Using VIX as macro indicator")
-    else:
-        logger.info("No macro indicator found")
+    
+    # Try to load FRED data first
+    try:
+        from src.fred_data import load_fred_data
+        macro_df = load_fred_data(
+            start_date=args.start_date if hasattr(args, 'start_date') else '2020-01-01',
+            end_date=args.end_date if hasattr(args, 'end_date') else None,
+            use_cache=True,
+            add_transforms=True
+        )
+        logger.info(f"Loaded FRED data: {macro_df.shape[1]} series, {len(macro_df)} months")
+    except Exception as e:
+        logger.warning(f"FRED data not available: {e}. Falling back to VIX.")
+        if 'VIX' in returns_df.columns:
+            macro_df = returns_df[['VIX']]
+            logger.info("Using VIX as macro indicator")
+        else:
+            logger.info("No macro indicator found")
+
+
+
     
     lags = [1, 3, 6, 12]
     X, y, dates = prepare_moe_data(
