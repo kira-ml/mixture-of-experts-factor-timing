@@ -318,10 +318,10 @@ def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -
     rolling_returns = get_portfolio_returns('rolling_avg')
     equal_returns = predictions_dict['moe']['actuals'].mean(axis=1).values
     
-    # Calculate cumulative products (start at 1.0)
-    moe_cum = (1 + moe_returns).cumprod()
-    rolling_cum = (1 + rolling_returns).cumprod()
-    equal_cum = (1 + equal_returns).cumprod()
+    # Calculate cumulative products (start at 1.0) as Pandas Series
+    moe_cum = pd.Series((1 + moe_returns).cumprod(), index=dates)
+    rolling_cum = pd.Series((1 + rolling_returns).cumprod(), index=dates)
+    equal_cum = pd.Series((1 + equal_returns).cumprod(), index=dates)
     
     # Align all series to the full dates index and forward-fill missing values
     moe_cum_aligned = moe_cum.reindex(dates).fillna(method='ffill')
