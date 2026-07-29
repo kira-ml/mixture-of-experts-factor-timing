@@ -365,6 +365,25 @@ def save_results(results: dict, args) -> None:
         # Save actuals
         actual_path = predictions_dir / f'{model_name}_actuals.csv'
         actuals.to_csv(actual_path)
+        
+        # Save portfolio returns (NEW - with DatetimeIndex fix)
+        if 'portfolio_returns' in model_results:
+            portfolio_df = model_results['portfolio_returns']
+            if isinstance(portfolio_df, pd.DataFrame):
+                # --- FIX: Ensure index is a proper DatetimeIndex before saving ---
+                if not isinstance(portfolio_df.index, pd.DatetimeIndex):
+                    portfolio_df.index = pd.to_datetime(portfolio_df.index)
+                portfolio_df.index.freq = 'ME'  # Force monthly frequency
+                portfolio_path = predictions_dir / f'{model_name}_portfolio_returns.csv'
+                portfolio_df.to_csv(portfolio_path)
+            else:
+                # Fallback for backward compatibility (if it's still a numpy array)
+                portfolio_path = predictions_dir / f'{model_name}_portfolio_returns.csv'
+                pd.DataFrame(
+                    model_results['portfolio_returns'],
+                    index=model_results['predictions'].index,
+                    columns=['portfolio_returns']
+                ).to_csv(portfolio_path)
     
     logger.info(f"Predictions saved to {predictions_dir}")
     
@@ -386,6 +405,8 @@ def save_results(results: dict, args) -> None:
     logger.info(f"Config saved to {config_path}")
 
 
+
+    
 def main():
     """
     Main orchestrator function.

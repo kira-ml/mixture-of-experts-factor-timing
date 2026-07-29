@@ -196,11 +196,31 @@ def load_results_from_timestamp(timestamp: str) -> Dict:
             pred_file = pred_dir / f'{model}_predictions.csv'
             actual_file = pred_dir / f'{model}_actuals.csv'
             if pred_file.exists() and actual_file.exists():
+                # --- FIX: Force proper DatetimeIndex with monthly frequency ---
+                preds_df = pd.read_csv(pred_file, index_col=0, parse_dates=True)
+                actuals_df = pd.read_csv(actual_file, index_col=0, parse_dates=True)
+                
+                # Convert index to DatetimeIndex with monthly frequency
+                preds_df.index = pd.to_datetime(preds_df.index)
+                actuals_df.index = pd.to_datetime(actuals_df.index)
+                
+                # Ensure frequency is set to month end
+                if not isinstance(preds_df.index, pd.DatetimeIndex):
+                    preds_df.index = pd.DatetimeIndex(preds_df.index)
+                if not isinstance(actuals_df.index, pd.DatetimeIndex):
+                    actuals_df.index = pd.DatetimeIndex(actuals_df.index)
+                
+                # Force monthly frequency (ME = Month End)
+                preds_df = preds_df.asfreq('ME')
+                actuals_df = actuals_df.asfreq('ME')
+                
                 predictions_dict[model] = {
-                    'predictions': pd.read_csv(pred_file, index_col=0, parse_dates=True),
-                    'actuals': pd.read_csv(actual_file, index_col=0, parse_dates=True)
+                    'predictions': preds_df,
+                    'actuals': actuals_df
                 }
-    return {'summary': summary_df, 'predictions': predictions_dict, 'config': config, 'timestamp': timestamp}
+        return {'summary': summary_df, 'predictions': predictions_dict, 'config': config, 'timestamp': timestamp}
+
+
 
 
 def plot_model_comparison(summary_df: pd.DataFrame, save_dir: Path) -> None:
@@ -287,73 +307,143 @@ def plot_per_factor_rmse(predictions_dict: Dict, save_dir: Path) -> None:
     logger.info(f"Per-factor RMSE heatmap saved to {save_dir / 'per_factor_rmse.png'}")
 
 
-def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -> None:
+def plot_cumulative_returns_comparison(
+    predictions_dict: Dict, 
+    save_dir: Path, 
+    timestamp: str  # <--- Added explicit timestamp argument
+) -> None:
     """Fixed cumulative returns plot with data validation and full 2019-2026 timeline."""
     ensure_directory(save_dir)
     
-    def get_portfolio_returns(model_name):
-        if model_name not in predictions_dict: return None
-        preds = predictions_dict[model_name]['predictions'].values
-        actuals = predictions_dict[model_name]['actuals'].values
-        
-        # --- VALIDATION: Check for NaN and extreme outliers ---
-        if np.isnan(preds).any() or np.isnan(actuals).any():
-            logger.warning(f"NaN values detected in {model_name} predictions or actuals. Fixing.")
-            preds = np.nan_to_num(preds, nan=0.0)
-            actuals = np.nan_to_num(actuals, nan=0.0)
-        
-        # Remove extreme outliers (anything > 100% monthly return is likely an error)
-        preds = np.clip(preds, -1.0, 1.0)  # Clip to -100% to 100%
-        actuals = np.clip(actuals, -1.0, 1.0)
-
-        weights = np.where(preds > 0, preds, 0.0)
-        row_sums = weights.sum(axis=1, keepdims=True)
-        weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
-        returns = np.sum(weights * actuals, axis=1)
-        
-        # Cost logic
-        cost_decimal = 10 / 10000
-        prev_weights = np.zeros_like(weights)
-        prev_weights[0] = 1.0 / weights.shape[1]
-        turnover = np.zeros(len(weights))
-        for i in range(1, len(weights)):
-            turnover[i] = np.sum(np.abs(weights[i] - weights[i-1])) / 2
-        transaction_costs = turnover * cost_decimal
-        returns = returns - transaction_costs
-        
-        # Clip final returns to prevent exploding values
-        returns = np.clip(returns, -0.5, 0.5)  # Clip to -50% to 50% monthly
-        return returns
+    # --- FIX: Use the explicit timestamp passed as an argument ---
+    moe_portfolio_path = None
+    rolling_portfolio_path = None
     
-    # --- FIX: Force the correct number of predictions (83 months) ---
+    if timestamp is not None:
+        moe_portfolio_path = Path(get_results_dir()) / 'predictions' / timestamp / 'moe_portfolio_returns.csv'
+        rolling_portfolio_path = Path(get_results_dir()) / 'predictions' / timestamp / 'rolling_avg_portfolio_returns.csv'
+    
+    # Load MoE portfolio returns (keep as Series with DatetimeIndex if available)
+    if moe_portfolio_path is not None and moe_portfolio_path.exists():
+        logger.info(f"Loading MoE portfolio returns from {moe_portfolio_path}")
+        moe_df = pd.read_csv(moe_portfolio_path, index_col=0, parse_dates=True)
+        moe_series = moe_df['portfolio_returns'].astype(float)
+        # If values look like percentages (e.g., 11.7 -> 11.7%), convert to decimal
+        if np.nanmax(np.abs(moe_series.values)) > 1.5:
+            logger.info("Detected percent-scale in MoE portfolio returns; converting to decimals.")
+            moe_series = moe_series / 100.0
+    else:
+        logger.warning("MoE portfolio returns not found. Falling back to reconstruction.")
+        moe_series = None
+
+    # Load Rolling Average portfolio returns (keep as Series with DatetimeIndex if available)
+    if rolling_portfolio_path is not None and rolling_portfolio_path.exists():
+        logger.info(f"Loading Rolling Average portfolio returns from {rolling_portfolio_path}")
+        rolling_df = pd.read_csv(rolling_portfolio_path, index_col=0, parse_dates=True)
+        rolling_series = rolling_df['portfolio_returns'].astype(float)
+        # If values look like percentages, convert to decimal
+        if np.nanmax(np.abs(rolling_series.values)) > 1.5:
+            logger.info("Detected percent-scale in Rolling Average portfolio returns; converting to decimals.")
+            rolling_series = rolling_series / 100.0
+    else:
+        logger.warning("Rolling Average portfolio returns not found. Falling back to reconstruction.")
+        rolling_series = None
+    
+    # Equal-Weight is always reconstructed from actuals (no portfolio returns file for it)
+    # Preserve the original datetime index from the actuals DataFrame
+    if 'moe' in predictions_dict and 'actuals' in predictions_dict['moe']:
+        actuals_df = predictions_dict['moe']['actuals']
+        equal_series = pd.Series(np.nanmean(actuals_df.values, axis=1), index=actuals_df.index)
+        # Convert percent-scale actuals to decimals if needed
+        if np.nanmax(np.abs(equal_series.values)) > 1.5:
+            logger.info("Detected percent-scale in actuals for equal-weight; converting to decimals.")
+            equal_series = equal_series / 100.0
+    else:
+        equal_series = None
+    
+    # --- FALLBACK: Reconstruct from predictions if files are missing ---
+    if moe_series is None or rolling_series is None:
+        logger.warning("Reconstructing portfolio returns from predictions (may be flat).")
+        def get_portfolio_returns(model_name):
+            if model_name not in predictions_dict: 
+                return None
+            preds = predictions_dict[model_name]['predictions'].values
+            actuals = predictions_dict[model_name]['actuals'].values
+            if preds.size == 0 or actuals.size == 0:
+                return np.zeros(83)
+            if np.isnan(preds).any() or np.isnan(actuals).any():
+                preds = np.nan_to_num(preds, nan=0.0)
+                actuals = np.nan_to_num(actuals, nan=0.0)
+            # If predictions/actuals are in percent scale, convert to decimals
+            if np.nanmax(np.abs(preds)) > 1.5 or np.nanmax(np.abs(actuals)) > 1.5:
+                logger.info(f"Detected percent-scale in {model_name} preds/actuals; converting to decimals.")
+                preds = preds / 100.0
+                actuals = actuals / 100.0
+            preds = np.clip(preds, -1.0, 1.0)
+            actuals = np.clip(actuals, -1.0, 1.0)
+            weights = np.where(preds > 0, preds, 0.0)
+            row_sums = weights.sum(axis=1, keepdims=True)
+            weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
+            returns = np.sum(weights * actuals, axis=1)
+            cost_decimal = 10 / 10000
+            prev_weights = np.zeros_like(weights)
+            prev_weights[0] = 1.0 / weights.shape[1]
+            turnover = np.zeros(len(weights))
+            for i in range(1, len(weights)):
+                turnover[i] = np.sum(np.abs(weights[i] - weights[i-1])) / 2
+            transaction_costs = turnover * cost_decimal
+            returns = returns - transaction_costs
+            returns = np.clip(returns, -0.5, 0.5)
+            return returns
+        
+        if moe_series is None:
+            moe_series = get_portfolio_returns('moe')
+        if rolling_series is None:
+            rolling_series = get_portfolio_returns('rolling_avg')
+    
+    # --- Force the correct number of predictions (83 months) ---
     n_predictions = 83  # Your known backtest length (2019-08 to 2026-07)
     start_date = pd.Timestamp('2019-08-31')  # Your backtest start date
     full_dates = pd.date_range(start=start_date, periods=n_predictions, freq='ME')
+
+    # Helper: convert various return inputs to a Series indexed by full_dates, filling missing returns with 0.0
+    def to_aligned_series(series_like):
+        if series_like is None:
+            return pd.Series(0.0, index=full_dates)
+        # If passed a numpy array without index, assume it aligns to the tail and create a Series
+        if isinstance(series_like, (np.ndarray, list)):
+            # If length matches full_dates, use directly; otherwise, right-align the values (assume tail data)
+            arr = np.asarray(series_like)
+            # If values appear to be in percent, convert to decimals
+            if np.nanmax(np.abs(arr)) > 1.5:
+                arr = arr / 100.0
+            if arr.size == len(full_dates):
+                return pd.Series(arr, index=full_dates).fillna(0.0)
+            # Right-align: pad left with zeros
+            pad_len = max(0, len(full_dates) - arr.size)
+            padded = np.concatenate([np.zeros(pad_len), arr])
+            return pd.Series(padded, index=full_dates).fillna(0.0)
+        # Otherwise assume it's a Pandas Series with a DatetimeIndex
+        s = series_like.copy()
+        s.index = pd.to_datetime(s.index)
+        s = s.reindex(full_dates).fillna(0.0)
+        return s
+
+    moe_aligned = to_aligned_series(moe_series)
+    rolling_aligned = to_aligned_series(rolling_series)
+    equal_aligned = to_aligned_series(equal_series)
+
+    # --- Calculate cumulative products (start at 1.0) as Pandas Series ---
+    moe_cum = (1 + moe_aligned).cumprod()
+    rolling_cum = (1 + rolling_aligned).cumprod()
+    equal_cum = (1 + equal_aligned).cumprod()
     
-    # Get returns (these are purely numpy arrays, no index issues)
-    moe_returns = get_portfolio_returns('moe')
-    rolling_returns = get_portfolio_returns('rolling_avg')
-    equal_returns = np.nanmean(predictions_dict['moe']['actuals'].values, axis=1)
-    
-    # Ensure length matches by trimming/padding if necessary
-    def align_to_dates(series, target_len):
-        if series is None: return np.zeros(target_len)
-        if len(series) < target_len:
-            pad_len = target_len - len(series)
-            return np.concatenate([np.full(pad_len, np.nan), series])
-        return series[:target_len]
-    
-    moe_returns_aligned = align_to_dates(moe_returns, n_predictions)
-    rolling_returns_aligned = align_to_dates(rolling_returns, n_predictions)
-    equal_returns_aligned = align_to_dates(equal_returns, n_predictions)
-    
-    # Calculate cumulative products (start at 1.0) as Pandas Series with full dates
-    moe_cum = pd.Series((1 + moe_returns_aligned).cumprod(), index=full_dates).fillna(1.0)
-    rolling_cum = pd.Series((1 + rolling_returns_aligned).cumprod(), index=full_dates).fillna(1.0)
-    equal_cum = pd.Series((1 + equal_returns_aligned).cumprod(), index=full_dates).fillna(1.0)
+    # Forward-fill the cumulative products to bridge gaps
+    moe_cum = moe_cum.ffill().fillna(1.0)
+    rolling_cum = rolling_cum.ffill().fillna(1.0)
+    equal_cum = equal_cum.ffill().fillna(1.0)
     
     # --- FINAL VALIDATION ---
-    # If the max cumulative return is > 1e6, cap it to prevent exploding graphs
     if moe_cum.max() > 1e6:
         logger.warning(f"MoE cumulative return capped at 1e6 to prevent scaling issues.")
         moe_cum = moe_cum.clip(upper=1e6)
@@ -369,7 +459,7 @@ def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -
     ax.set_title('Cumulative Returns Comparison (Out-of-Sample)', fontweight='bold')
     ax.legend(loc='upper left', frameon=True, fancybox=True)
     ax.yaxis.set_major_formatter(mtick.ScalarFormatter())
-    ax.set_ylim(0, moe_cum.max() * 1.1)
+    ax.set_ylim(0, max(moe_cum.max(), rolling_cum.max(), equal_cum.max()) * 1.1)
     
     plt.tight_layout()
     plt.savefig(save_dir / 'cumulative_returns.png')
@@ -469,7 +559,8 @@ def generate_all_paper_plots(timestamp: str, output_dir: Optional[Path] = None) 
     logger.info(f"Saving all paper figures to: {output_dir}")
     plot_model_comparison(summary_df, output_dir)
     plot_per_factor_rmse(predictions_dict, output_dir)
-    plot_cumulative_returns_comparison(predictions_dict, output_dir)
+    # Pass the timestamp explicitly to the cumulative returns plot
+    plot_cumulative_returns_comparison(predictions_dict, output_dir, timestamp)
     plot_training_window_sensitivity(output_dir)
     plot_vix_vs_fred_comparison(output_dir)
     generate_paper_summary_table(summary_df, output_dir)

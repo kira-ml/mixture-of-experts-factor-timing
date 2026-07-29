@@ -247,6 +247,10 @@ def run_backtest(
     
     # Create progress bar
     total_splits = n - min_train_size - test_size + 1
+    if total_splits <= 0:
+        logger.error(f"Not enough data for backtest with min_train_size={min_train_size}. Need at least {min_train_size + test_size} observations.")
+        return results
+    
     iterator = tqdm(range(total_splits), desc="Backtesting") if verbose else range(total_splits)
     
     for model_config in model_configs:
@@ -255,11 +259,12 @@ def run_backtest(
         
         logger.info(f"Running backtest for {model_name}...")
         
-        # Initialize storage for predictions and actuals
+        # Initialize storage for predictions, actuals, and portfolio returns
         all_predictions = []
         all_actuals = []
         all_dates = []
-        last_fitted_model = None  # Store last fitted model for regime analysis
+        all_portfolio_returns = []
+        last_fitted_model = None
         
         # Get splits
         splits = expanding_window_split(X, y, dates, min_train_size, test_size)
@@ -298,10 +303,19 @@ def run_backtest(
                 if model_name == 'moe':
                     last_fitted_model = model
                 
-                # Store predictions
+                # Store predictions and actuals
                 all_predictions.append(pred)
                 all_actuals.append(y_test.values)
                 all_dates.append(test_date)
+                
+                # Calculate and store portfolio returns for this split
+                split_portfolio_returns = predictions_to_returns(
+                    predictions=pred,
+                    actual_returns=y_test.values,
+                    strategy='magnitude_weighted',
+                    cost_bps=10.0
+                )
+                all_portfolio_returns.append(split_portfolio_returns)
                 
             except Exception as e:
                 logger.error(f"Error with {model_name} at date {test_date}: {e}")
@@ -309,6 +323,7 @@ def run_backtest(
                 all_predictions.append(np.zeros_like(y_test.values))
                 all_actuals.append(y_test.values)
                 all_dates.append(test_date)
+                all_portfolio_returns.append(np.zeros(1))
         
         # Combine results
         predictions_df = pd.DataFrame(
@@ -333,12 +348,11 @@ def run_backtest(
             columns=factor_names
         )
         
-        # Calculate portfolio returns from predictions
-        portfolio_returns = predictions_to_returns(
-            predictions=predictions_df.values,
-            actual_returns=actuals_df.values,
-            strategy='magnitude_weighted',  # Changed from 'long_only_positive'
-            cost_bps=10.0
+        # Combine portfolio returns
+        portfolio_returns_df = pd.DataFrame(
+            np.vstack(all_portfolio_returns),
+            index=all_dates,
+            columns=['portfolio_returns']
         )
         
         # Calculate metrics
@@ -346,16 +360,17 @@ def run_backtest(
             y_true=actuals_df.values,
             y_pred=predictions_df.values,
             factor_names=factor_names,
-            returns=portfolio_returns,
+            returns=portfolio_returns_df.values.flatten(),
             periods_per_year=12
         )
         
         results[model_name] = {
             'predictions': predictions_df,
             'actuals': actuals_df,
+            'portfolio_returns': portfolio_returns_df,
             'dates': all_dates,
             'metrics': metrics,
-            'fitted_model': last_fitted_model  # Store for regime analysis
+            'fitted_model': last_fitted_model
         }
     
     return results
@@ -407,6 +422,8 @@ def backtest_models(
     
     logger.info(f"Running backtest with {len(X)} observations, {X.shape[1]} features")
     logger.info(f"Models: {[config['name'] for config in model_configs]}")
+    logger.info(f"Min train size: {min_train_size}, Test size: {test_size}")
+    logger.info(f"Expected predictions: {len(X) - min_train_size - test_size + 1}")
     
     # Run backtest
     results = run_backtest(
