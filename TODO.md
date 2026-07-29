@@ -398,6 +398,36 @@
   - [x] Implemented magnitude-weighted allocation
   - [x] Improved Sharpe from 0.4415 to 0.5054
 
+### July 30, 2026 (Day 6) - Visualization Debugging & Fixes
+
+#### Actions Taken
+- Investigated flat cumulative returns plot at `results/paper_figures/20260730_003330/cumulative_returns.png`.
+- Found portfolio return CSVs contained only 6 monthly rows (2026-01 → 2026-06); earlier months were missing and code padded left with zeros, producing a flat 1.0 line until the last months.
+- Detected percent-scaled returns (e.g., 11.7) in portfolio CSVs and predictions; converted to decimal fractions before cumulative computation.
+- Patched `src/visualization.py`:
+  - Align portfolio/prediction series to the full backtest timeline (2019-08 → 2026-07) when required.
+  - Convert percent-scale inputs to decimals automatically.
+  - Improve fallback reconstruction from predictions and avoid UnboundLocalError by using consistent variable names.
+  - Optionally right-align arrays and pad missing months with zeros (current behavior) — can be changed to forward-fill or plot by-native-dates.
+- Added a quick debug helper `scripts/debug_cum_returns.py` to print heads/tails, detect percent-scale, reconstruct returns, and show final cumulative values.
+- Regenerated paper figures and confirmed cumulative last values: MoE ≈ 1.3665, Rolling ≈ 1.0846, Equal ≈ 1.1385 (consistent with provided data).
+
+#### Observations & Conclusion
+- The visualization is now numerically correct for the available data; the apparent "flat" line was caused by missing historical rows (not a plotting bug).
+- To show a non-flat multi-year series you must either:
+  - Provide full prediction/portfolio-return files covering the entire backtest window (preferred), or
+  - Plot each series on its native date index (avoid left-zero padding), or
+  - Forward-fill cumulative series instead of left-padding returns with zeros.
+
+#### Suggested Next Steps (for you)
+- Inspect the prediction-generation step (where `*_predictions.csv` are written) and ensure it writes the full 83 prediction rows for the timestamp.
+- If you want me to apply a plotting change (plot native indices or forward-fill cumulative), tell me which option and I'll patch `src/visualization.py`.
+- Files changed in this debugging session:
+  - `src/visualization.py` (aligned series, percent-scale conversion, bug fixes)
+  - `scripts/debug_cum_returns.py` (new helper)
+
+-- Logged on July 30, 2026
+
 - [x] **PyTorch MoE Isolated Experiment**
   - [x] Implemented LSTM gating + MLP experts
   - [x] Standalone runner script
