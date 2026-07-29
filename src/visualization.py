@@ -3,7 +3,7 @@ Visualization for MoE Regime-Switching Factor Timing Paper.
 Generates publication-quality figures for the mini research paper.
 
 Usage:
-    python -c "from src.visualization import generate_all_figures; generate_all_figures('20260730_013120')"
+    python src/visualization.py --timestamp 20260730_013120
 """
 
 import numpy as np
@@ -15,6 +15,7 @@ from typing import Dict, Optional, Tuple, List
 import logging
 import json
 import matplotlib.ticker as mtick
+import argparse
 
 from src.utils import get_results_dir, ensure_directory
 
@@ -250,6 +251,7 @@ def plot_cumulative_returns(data: Dict, save_dir: Path) -> None:
     """
     Figure 2: Cumulative returns comparison.
     Shows MoE vs Rolling Average vs Equal-Weight.
+    CORRECTED: Plots only the dates that exist in the out-of-sample data.
     """
     ensure_directory(save_dir)
     
@@ -282,16 +284,23 @@ def plot_cumulative_returns(data: Dict, save_dir: Path) -> None:
     else:
         equal_returns = None
     
-    # Cumulative products
-    moe_cum = (1 + moe_returns).cumprod()
-    rolling_cum = (1 + rolling_returns).cumprod()
+    # Find the common index across all available series
+    common_index = moe_returns.index
+    if rolling_returns is not None:
+        common_index = common_index.intersection(rolling_returns.index)
+    if equal_returns is not None:
+        common_index = common_index.intersection(equal_returns.index)
+    
+    # Filter to common dates and compute cumulative products
+    moe_cum = (1 + moe_returns.loc[common_index]).cumprod()
+    rolling_cum = (1 + rolling_returns.loc[common_index]).cumprod()
     
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.plot(moe_cum.index, moe_cum, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
     ax.plot(rolling_cum.index, rolling_cum, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
     
     if equal_returns is not None:
-        equal_cum = (1 + equal_returns).cumprod()
+        equal_cum = (1 + equal_returns.loc[common_index]).cumprod()
         ax.plot(equal_cum.index, equal_cum, label='Equal-Weight (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
     
     ax.set_xlabel('Date')
@@ -525,11 +534,12 @@ def generate_all_figures(timestamp: str, output_dir: Optional[Path] = None) -> N
 # ============================================================================
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("MoE Factor Timing - Visualization Module")
-    print("=" * 60)
-    print("\nUsage:")
-    print("  python -c \"from src.visualization import generate_all_figures; generate_all_figures('TIMESTAMP')\"")
-    print("\nExample:")
-    print("  python -c \"from src.visualization import generate_all_figures; generate_all_figures('20260730_013120')\"")
-    print("\n" + "=" * 60)
+    parser = argparse.ArgumentParser(description="Generate paper figures for MoE Factor Timing project.")
+    parser.add_argument("--timestamp", type=str, required=True,
+                        help="Run timestamp (e.g., 20260730_013120)")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help="Optional output directory path")
+    args = parser.parse_args()
+    
+    output_path = Path(args.output_dir) if args.output_dir else None
+    generate_all_figures(args.timestamp, output_path)
