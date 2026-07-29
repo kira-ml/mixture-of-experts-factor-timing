@@ -1,10 +1,10 @@
-# Problem Framing: Regime-Switching Factor Timing
+# Problem Framing: Regime-Aware Factor Timing
 
 ---
 
 ## Overview
 
-This document frames the research problem for the `moe-factor-timing` project. It defines the core research question, problem motivation, machine learning formulation, success criteria, and evaluation strategy. The framing is designed to be practical, technically sound, and valuable as an open-source contribution.
+This document frames the research problem for the `moe-factor-timing` project. It defines the core research question, problem motivation, machine learning formulation, success criteria, and evaluation strategy. The framing is designed to be practical, technically sound, and valuable as an open-source contribution to the quantitative finance community.
 
 ---
 
@@ -12,13 +12,13 @@ This document frames the research problem for the `moe-factor-timing` project. I
 
 **Primary Question:**
 
-> Can a probabilistic model that explicitly represents uncertainty over latent economic regimes improve out-of-sample factor timing performance compared to simpler deterministic approaches?
+> Can a probabilistic model that explicitly represents uncertainty over latent economic regimes improve out-of-sample factor allocation performance compared to simpler deterministic approaches?
 
 **Secondary Questions:**
 
-1. How does a Mixture of Experts model compare to linear and non-linear baselines for factor return prediction?
-2. Do macroeconomic indicators provide incremental predictive value beyond historical factor returns and market volatility?
-3. Are the learned regimes economically interpretable and stable over time?
+1. How does a Mixture of Experts (MoE) model compare to linear and non-linear machine learning baselines for multi-factor return prediction?
+2. Do macroeconomic indicators provide incremental predictive value beyond historical factor returns and market volatility in a regime-aware framework?
+3. Are the learned regimes economically interpretable, and do they exhibit stability over time?
 
 ---
 
@@ -26,16 +26,16 @@ This document frames the research problem for the `moe-factor-timing` project. I
 
 ### The Core Challenge
 
-Equity factor premiums—such as Value, Momentum, Quality, and Low Volatility—are central to modern portfolio construction (Fama & French, 1993; Asness et al., 2013). However, these premiums are not stable over time. Value can underperform for extended periods, and momentum can experience sudden reversals. This creates a practical challenge for investors: how to allocate across factors when the future performance of each factor is uncertain and regime-dependent.
+Equity factor premiums—such as Value, Momentum, Quality, and Low Volatility—are central to modern portfolio construction. However, these premiums are not stable over time; they exhibit significant time-variation that appears related to macroeconomic conditions. This creates a practical challenge: how should an investor allocate across factors when the future performance of each factor is uncertain and dependent on latent economic states?
 
 ### Why This Problem Matters
 
-Factor investing has grown into a multi-trillion-dollar industry, but factor premiums are not stable over time. Investors face a practical dilemma:
+Factor investing has grown significantly, but factor performance cycles are difficult to time. Investors face a practical dilemma:
 
 | Approach | Advantage | Disadvantage |
 |----------|-----------|--------------|
 | Static factor allocation | Diversification, low turnover | Prolonged drawdowns, missed opportunities |
-| Aggressive factor timing | Potential for higher returns | Implementation risk, can fail spectacularly |
+| Aggressive factor timing | Potential for higher returns | High implementation risk; often fails |
 | Regime-aware allocation | Potential to adapt to changing conditions | Requires reliable regime detection |
 
 This project addresses the intermediate question of whether probabilistic regime awareness can improve allocation decisions without overfitting to historical patterns.
@@ -56,7 +56,7 @@ We develop and compare methods that explicitly model latent economic regimes pro
 
 | Feature Type | Description | Source |
 |--------------|-------------|--------|
-| Historical factor returns | Monthly returns for months $t-L$ through $t$ | yfinance / FRED |
+| Historical factor returns | Monthly returns for months $t-L$ through $t$ | yfinance |
 | Macroeconomic indicators | VIX, CPI, Industrial Production, Unemployment, Term Spread | FRED |
 | Derived features | Lagged returns, rolling volatility, transformations | Engineered |
 
@@ -78,46 +78,33 @@ where:
 
 ### Key Distinction
 
-The model produces **distributional** predictions, not point estimates. This allows downstream allocation to account for prediction uncertainty when making investment decisions.
-
-### Evaluation Framework
-
-We evaluate models on two dimensions:
-
-**Dimension 1: Predictive Accuracy** — How well does the model predict future factor returns?
-- Primary metric: RMSE (Root Mean Squared Error)
-- Secondary metric: MAE (Mean Absolute Error)
-
-**Dimension 2: Investment Performance** — How well do predictions translate into portfolio performance?
-- Primary metric: Sharpe Ratio (risk-adjusted return)
-- Secondary metrics: Annualized Return, Maximum Drawdown, Calmar Ratio, Win Rate
-
-This dual evaluation is critical because a model can have high predictive accuracy but poor investment performance (if predictions are noisy in the wrong direction), or vice versa.
+The model produces **distributional** predictions, not point estimates. This allows downstream allocation to account for prediction uncertainty when making investment decisions. Importantly, the model is **regime-aware** (it estimates the probability of being in different latent states), rather than enforcing a hard regime-switching rule.
 
 ---
 
 ## 4. Models
 
-### Baseline Models
+To ensure a rigorous comparison, we evaluate models across three levels of complexity.
+
+### Level 1: Non-Machine Learning Heuristics (Baselines)
 
 | Model | Description | Why Included |
 |-------|-------------|--------------|
-| **Persistence Forecast** | Next month's return equals current month's return | Simplest possible benchmark; establishes minimum performance |
-| **Rolling Average** | Next month's return equals the average of the last 12 months | Captures medium-term trends; common practitioner heuristic |
+| **Persistence Forecast** | Next month's return equals current month's return | Simplest benchmark; establishes minimum performance threshold |
+| **Rolling Average** | Next month's return equals average of last 12 months | Captures medium-term trends; common practitioner heuristic |
+
+### Level 2: Standard Machine Learning Baselines
+
+| Model | Description | Why Included |
+|-------|-------------|--------------|
 | **Linear Regression** | Linear model with lagged returns and macro features | Standard statistical baseline; establishes linear benchmark |
-
-### Machine Learning Baselines
-
-| Model | Description | Why Included |
-|-------|-------------|--------------|
 | **Random Forest** | Non-linear ensemble with 100 trees, max depth 10 | Captures non-linear relationships; robust to overfitting |
-| **Momentum-Based Timing** | Allocate based on 12-month factor momentum | Common practitioner approach; establishes heuristic baseline |
 
-### Advanced Model
+### Level 3: Advanced Method (Primary Contribution)
 
 | Model | Description | Why Included |
 |-------|-------------|--------------|
-| **Mixture of Experts (MoE)** | Softmax gating network + expert models per regime | Explicitly models regime uncertainty; primary research contribution |
+| **Mixture of Experts (MoE)** | Softmax gating network + linear experts per regime, trained via EM | Explicitly models regime uncertainty; primary research contribution |
 
 ---
 
@@ -125,33 +112,35 @@ This dual evaluation is critical because a model can have high predictive accura
 
 ### Validation Approach
 
-We use **expanding window cross-validation** (also known as time-series cross-validation):
+We use **expanding window cross-validation** (time-series cross-validation):
 
 | Parameter | Value |
 |-----------|-------|
 | Window Type | Expanding (growing training set) |
-| Minimum Training Size | 60-132 months (tested) |
+| Minimum Training Size | 132 months (optimal) |
 | Test Size | 1 month |
-| Predictions | 83+ months (2019-2026) |
+| Out-of-Sample Predictions | 24 months (2024-07 to 2026-06) |
 
-**Rationale:** Expanding window prevents look-ahead bias and mimics real-world deployment where historical data accumulates over time.
+**Rationale:** Expanding window cross-validation prevents look-ahead bias and mimics real-world deployment. Given the use of 96 macroeconomic features, a minimum training size of 132 months is required to stabilize the MoE's Expectation-Maximization algorithm and avoid singular covariance matrices.
 
 ### Evaluation Metrics
 
-**Predictive Metrics:**
+We evaluate models on two distinct dimensions to capture the trade-off between predictive accuracy and investment utility.
+
+**Dimension 1: Predictive Accuracy**
 
 | Metric | Formula | Interpretation |
 |--------|---------|----------------|
 | RMSE | $\sqrt{\frac{1}{n}\sum(y_i - \hat{y}_i)^2}$ | Lower is better; penalizes large errors |
 | MAE | $\frac{1}{n}\sum\|y_i - \hat{y}_i\|$ | Lower is better; interpretable in same units |
 
-**Investment Metrics:**
+**Dimension 2: Investment Performance**
 
 | Metric | Formula | Interpretation |
 |--------|---------|----------------|
 | Sharpe Ratio | $\frac{\text{Mean Excess Return}}{\text{Std Dev Return}} \times \sqrt{12}$ | Higher is better; risk-adjusted return |
 | Annualized Return | $(1 + \text{Total Return})^{1/\text{Years}} - 1$ | Higher is better; compound growth |
-| Maximum Drawdown | $\min_{t} \frac{\text{Cumulative}_t - \text{Max Cumulative}}{\text{Max Cumulative}}$ | Lower is better (less negative) |
+| Maximum Drawdown | $\min_{t} \frac{\text{Cumulative}_t - \text{Max Cumulative}}{\text{Max Cumulative}}$ | Lower (less negative) is better |
 | Calmar Ratio | $\frac{\text{Annualized Return}}{\|\text{Maximum Drawdown}\|}$ | Higher is better; return per unit of worst-case risk |
 | Win Rate | $\frac{\text{Number of Positive Months}}{\text{Total Months}}$ | Higher is better; consistency |
 
@@ -175,7 +164,9 @@ We use a **magnitude-weighted long-only strategy**:
 | Dataset | Source | Description |
 |---------|--------|-------------|
 | **Equity Factors (Primary)** | yfinance (ETF proxies) | SPY, IWD, MTUM, QUAL, USMV, VIX |
-| **Macroeconomic Data** | FRED (Federal Reserve Economic Data) | CPI, INDPRO, UNRATE, T10Y2Y, GS10, GS2 |
+| **Macroeconomic Data** | FRED | CPI, INDPRO, UNRATE, T10Y2Y, GS10, GS2 |
+
+**Data Period:** 2013-08 to 2026-07 (156 months)
 
 **Why These Datasets:**
 - yfinance provides accessible, real-world data for factor proxies
@@ -183,29 +174,29 @@ We use a **magnitude-weighted long-only strategy**:
 - Monthly frequency aligns with factor returns
 - Freely available and reproducible
 
-**Data Period:** 2013-08 to 2026-07 (156 months)
-
 ---
 
 ## 7. Experimental Design
 
 ### Experiment 1: Model Comparison (Primary)
+Compare all models (heuristics, ML baselines, and MoE) using expanding window backtest.
 
-Compare all models (baselines + MoE) using expanding window backtest.
+**Hypothesis:** MoE will outperform baselines on risk-adjusted investment metrics (Sharpe Ratio).
 
-**Hypothesis:** MoE will outperform baselines on investment metrics.
-
-### Experiment 2: Macro Indicator Comparison
-
-Compare VIX-only vs FRED-enhanced features.
+### Experiment 2: Feature Set Comparison
+Compare VIX-only features (28 features) vs. FRED-enhanced features (96 features).
 
 **Hypothesis:** FRED indicators will provide incremental predictive value beyond VIX.
 
 ### Experiment 3: Regime Sensitivity Analysis
-
-Test different numbers of experts (K=2,3,4,5,6,8).
+Test different numbers of experts (K=2, 3, 4, 5) to identify the optimal number of latent regimes.
 
 **Hypothesis:** Optimal K will be between 3-5 for this data.
+
+### Experiment 4: Robustness Checks (Secondary)
+Test the stability of the optimal MoE configuration under varying training window sizes (e.g., 120, 132, 144 months).
+
+**Hypothesis:** The model will require a minimum of 132 months of training data to maintain stable predictions.
 
 ---
 
@@ -215,8 +206,8 @@ Test different numbers of experts (K=2,3,4,5,6,8).
 
 | Criterion | Definition |
 |-----------|------------|
-| **Model Outperforms Baselines** | MoE achieves higher Sharpe ratio than Linear Regression and Rolling Average |
-| **Positive Sharpe Ratio** | All models should achieve > 0 Sharpe (risk-adjusted positive returns) |
+| **Model Outperforms Baselines** | MoE achieves a higher Sharpe ratio than Linear Regression and Rolling Average |
+| **Positive Sharpe Ratio** | The MoE strategy should achieve a Sharpe ratio > 0 |
 | **Regime Interpretability** | Learned regimes should have distinct return/volatility characteristics |
 
 ### Secondary Success Criteria
@@ -250,6 +241,7 @@ Test different numbers of experts (K=2,3,4,5,6,8).
 1. **Long-only allocation** only (no short-selling)
 2. **Monthly frequency** only (not daily or intraday)
 3. **No leverage** (1x exposure only)
+4. **Feature dimensionality trade-off:** The use of 96 FRED features requires a sufficiently long training window (132 months) to maintain model stability.
 
 ---
 
@@ -310,6 +302,7 @@ Test different numbers of experts (K=2,3,4,5,6,8).
 |---------|------|---------|
 | 1.0 | 2026-07-25 | Initial problem framing |
 | 2.0 | 2026-07-29 | Optimized framing: added evaluation framework, success criteria, experimental design |
+| 3.0 | 2026-07-30 | Refined scope: changed "regime-switching" to "regime-aware"; aligned out-of-sample window with data constraints; added robustness checks |
 
 ---
 
