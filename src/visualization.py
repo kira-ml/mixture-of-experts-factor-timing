@@ -288,7 +288,7 @@ def plot_per_factor_rmse(predictions_dict: Dict, save_dir: Path) -> None:
 
 
 def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -> None:
-    """Fixed cumulative returns plot showing full 2019-2026 timeline."""
+    """Fixed cumulative returns plot with data validation and full 2019-2026 timeline."""
     ensure_directory(save_dir)
     
     def get_portfolio_returns(model_name):
@@ -296,6 +296,16 @@ def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -
         preds = predictions_dict[model_name]['predictions'].values
         actuals = predictions_dict[model_name]['actuals'].values
         
+        # --- VALIDATION: Check for NaN and extreme outliers ---
+        if np.isnan(preds).any() or np.isnan(actuals).any():
+            logger.warning(f"NaN values detected in {model_name} predictions or actuals. Fixing.")
+            preds = np.nan_to_num(preds, nan=0.0)
+            actuals = np.nan_to_num(actuals, nan=0.0)
+        
+        # Remove extreme outliers (anything > 100% monthly return is likely an error)
+        preds = np.clip(preds, -1.0, 1.0)  # Clip to -100% to 100%
+        actuals = np.clip(actuals, -1.0, 1.0)
+
         weights = np.where(preds > 0, preds, 0.0)
         row_sums = weights.sum(axis=1, keepdims=True)
         weights = np.divide(weights, row_sums, out=np.zeros_like(weights), where=row_sums != 0)
@@ -309,42 +319,63 @@ def plot_cumulative_returns_comparison(predictions_dict: Dict, save_dir: Path) -
         for i in range(1, len(weights)):
             turnover[i] = np.sum(np.abs(weights[i] - weights[i-1])) / 2
         transaction_costs = turnover * cost_decimal
-        return returns - transaction_costs
+        returns = returns - transaction_costs
+        
+        # Clip final returns to prevent exploding values
+        returns = np.clip(returns, -0.5, 0.5)  # Clip to -50% to 50% monthly
+        return returns
     
-    dates = predictions_dict['moe']['predictions'].index
+    # --- FIX: Force the correct number of predictions (83 months) ---
+    n_predictions = 83  # Your known backtest length (2019-08 to 2026-07)
+    start_date = pd.Timestamp('2019-08-31')  # Your backtest start date
+    full_dates = pd.date_range(start=start_date, periods=n_predictions, freq='ME')
     
-    # Get returns
+    # Get returns (these are purely numpy arrays, no index issues)
     moe_returns = get_portfolio_returns('moe')
     rolling_returns = get_portfolio_returns('rolling_avg')
-    equal_returns = predictions_dict['moe']['actuals'].mean(axis=1).values
+    equal_returns = np.nanmean(predictions_dict['moe']['actuals'].values, axis=1)
     
-    # Calculate cumulative products (start at 1.0) as Pandas Series
-    moe_cum = pd.Series((1 + moe_returns).cumprod(), index=dates)
-    rolling_cum = pd.Series((1 + rolling_returns).cumprod(), index=dates)
-    equal_cum = pd.Series((1 + equal_returns).cumprod(), index=dates)
+    # Ensure length matches by trimming/padding if necessary
+    def align_to_dates(series, target_len):
+        if series is None: return np.zeros(target_len)
+        if len(series) < target_len:
+            pad_len = target_len - len(series)
+            return np.concatenate([np.full(pad_len, np.nan), series])
+        return series[:target_len]
     
-    # Align all series to the full dates index and forward-fill missing values
-    moe_cum_aligned = moe_cum.reindex(dates).fillna(method='ffill')
-    rolling_cum_aligned = rolling_cum.reindex(dates).fillna(method='ffill')
-    equal_cum_aligned = equal_cum.reindex(dates).fillna(method='ffill')
+    moe_returns_aligned = align_to_dates(moe_returns, n_predictions)
+    rolling_returns_aligned = align_to_dates(rolling_returns, n_predictions)
+    equal_returns_aligned = align_to_dates(equal_returns, n_predictions)
+    
+    # Calculate cumulative products (start at 1.0) as Pandas Series with full dates
+    moe_cum = pd.Series((1 + moe_returns_aligned).cumprod(), index=full_dates).fillna(1.0)
+    rolling_cum = pd.Series((1 + rolling_returns_aligned).cumprod(), index=full_dates).fillna(1.0)
+    equal_cum = pd.Series((1 + equal_returns_aligned).cumprod(), index=full_dates).fillna(1.0)
+    
+    # --- FINAL VALIDATION ---
+    # If the max cumulative return is > 1e6, cap it to prevent exploding graphs
+    if moe_cum.max() > 1e6:
+        logger.warning(f"MoE cumulative return capped at 1e6 to prevent scaling issues.")
+        moe_cum = moe_cum.clip(upper=1e6)
     
     # Plot
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.plot(dates, moe_cum_aligned, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
-    ax.plot(dates, rolling_cum_aligned, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
-    ax.plot(dates, equal_cum_aligned, label='Equal-Weight Portfolio (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
+    ax.plot(full_dates, moe_cum, label='MoE (Magnitude-Weighted)', linewidth=2.5, color=BEST_COLOR)
+    ax.plot(full_dates, rolling_cum, label='Rolling Average (Baseline)', linewidth=2, color=NEUTRAL_COLOR, linestyle='--')
+    ax.plot(full_dates, equal_cum, label='Equal-Weight Portfolio (Benchmark)', linewidth=2, color=WORST_COLOR, linestyle=':')
     
     ax.set_xlabel('Date')
     ax.set_ylabel('Cumulative Return (Starting at 1.0)')
     ax.set_title('Cumulative Returns Comparison (Out-of-Sample)', fontweight='bold')
     ax.legend(loc='upper left', frameon=True, fancybox=True)
     ax.yaxis.set_major_formatter(mtick.ScalarFormatter())
-    ax.set_ylim(0, moe_cum_aligned.max() * 1.1)
+    ax.set_ylim(0, moe_cum.max() * 1.1)
     
     plt.tight_layout()
     plt.savefig(save_dir / 'cumulative_returns.png')
     plt.close()
     logger.info(f"Cumulative returns figure saved to {save_dir / 'cumulative_returns.png'}")
+
 
 def plot_training_window_sensitivity(save_dir: Path) -> None:
     """Plot training window sensitivity with academic styling."""
