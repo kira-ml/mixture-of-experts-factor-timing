@@ -16,6 +16,11 @@ import logging
 import json
 import matplotlib.ticker as mtick
 import argparse
+import sys
+from pathlib import Path
+
+# Add project root to Python path so 'src' can be imported
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.utils import get_results_dir, ensure_directory
 
@@ -105,6 +110,7 @@ def load_data(timestamp: str) -> Dict:
     
     # Load predictions and portfolio returns
     pred_dir = results_dir / 'predictions' / timestamp
+    print(f"DEBUG: Loading predictions from: {pred_dir}")
     predictions_dict = {}
     portfolio_returns_dict = {}
     
@@ -121,7 +127,25 @@ def load_data(timestamp: str) -> Dict:
             
             if port_file.exists():
                 port_df = pd.read_csv(port_file, index_col=0, parse_dates=True)
-                portfolio_returns_dict[model] = port_df['portfolio_returns']
+                
+                # Robust detection of the returns column
+                if port_df.shape[1] == 1:
+                    # Single column: assume it's the returns
+                    port_series = port_df.iloc[:, 0]
+                elif 'portfolio_returns' in port_df.columns:
+                    port_series = port_df['portfolio_returns']
+                else:
+                    # Fallback: take the first column
+                    port_series = port_df.iloc[:, 0]
+                    logger.warning(f"Column 'portfolio_returns' not found in {port_file}; using first column.")
+                
+                # Filter out zero returns (padding from backtest)
+                port_series = port_series[port_series != 0.0]
+                
+                # Ensure we capture the full out-of-sample window (drop NaNs if any)
+                port_series = port_series.dropna()
+                
+                portfolio_returns_dict[model] = port_series
     
     return {
         'summary': summary_df,
