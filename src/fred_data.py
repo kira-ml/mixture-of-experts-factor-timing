@@ -62,15 +62,15 @@ class FredLoader:
         
         data = {}
         
-        # Fetch with buffer to ensure we have data before the start date
-        buffer_start = pd.to_datetime(start_date) - pd.DateOffset(years=2)
-        buffer_start_str = buffer_start.strftime('%Y-%m-%d')
+        # Fetch full historical data (FRED has data going back to 1940s-1960s)
+        # Use a fixed start date to get maximum historical data
+        full_start = '1940-01-01'
         
         for series_id in series_ids:
             try:
                 series = self.fred.get_series(
                     series_id,
-                    observation_start=buffer_start_str,
+                    observation_start=full_start,
                     observation_end=end_date
                 )
                 data[series_id] = series

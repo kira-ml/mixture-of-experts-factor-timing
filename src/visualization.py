@@ -33,8 +33,11 @@ def extract_regime_data(
     Returns:
         DataFrame with regime probabilities and dominant regime
     """
+    # Clean X: replace inf with NaN, then fill with 0
+    X_clean = X.replace([np.inf, -np.inf], np.nan).fillna(0)
+    
     # Get regime probabilities
-    probs = model.predict_proba(X)
+    probs = model.predict_proba(X_clean)
     
     # Create DataFrame
     regime_df = pd.DataFrame(

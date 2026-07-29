@@ -54,6 +54,9 @@ def create_features(
     # Drop rows with NaN (from shifting)
     X = X.dropna()
     
+    # Clean: replace inf with NaN, then fill with 0
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
+    
     return X
 
 

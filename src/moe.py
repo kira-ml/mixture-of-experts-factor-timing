@@ -191,8 +191,9 @@ class SimpleMoE:
                 continue
             
             # Weighted least squares for this expert
-            # Use sklearn's LinearRegression with sample weights
-            self.experts[i] = LinearRegression()
+            # Use Ridge regression with L2 regularization to prevent overfitting
+            from sklearn.linear_model import Ridge
+            self.experts[i] = Ridge(alpha=0.1)
             self.experts[i].fit(X, y, sample_weight=weights)
         
         # Update gating network using gradient ascent
