@@ -281,11 +281,11 @@ def display_results(results: dict) -> None:
     print("-" * 80)
     
     # Best by Sharpe
-    best_sharpe_model, best_sharpe = get_best_model(results, 'sharpe')
+    best_sharpe_model, best_sharpe = get_best_model(results, 'sharpe_ratio')
     print(f"Best Sharpe Ratio:    {best_sharpe_model} ({best_sharpe:.4f})")
     
     # Best by Calmar
-    best_calmar_model, best_calmar = get_best_model(results, 'calmar')
+    best_calmar_model, best_calmar = get_best_model(results, 'calmar_ratio')
     print(f"Best Calmar Ratio:    {best_calmar_model} ({best_calmar:.4f})")
     
     # Best by RMSE (lower is better)
@@ -293,7 +293,7 @@ def display_results(results: dict) -> None:
     print(f"Lowest RMSE:          {best_rmse_model} ({best_rmse:.4f})")
     
     # Best by Annual Return
-    best_return_model, best_return = get_best_model(results, 'ann_return')
+    best_return_model, best_return = get_best_model(results, 'annualized_return')
     print(f"Best Annual Return:   {best_return_model} ({best_return:.2f}%)")
     
     # Best by Win Rate
@@ -406,7 +406,7 @@ def save_results(results: dict, args) -> None:
 
 
 
-    
+
 def main():
     """
     Main orchestrator function.
@@ -477,19 +477,18 @@ def main():
             logger.info("STEP 4: Regime Analysis for MoE")
             logger.info("=" * 60)
             
-            # Get the fitted MoE model from the last training period
             fitted_model = results['moe'].get('fitted_model')
             
             if fitted_model is not None:
                 try:
-                    # Get the feature matrix and dates from the backtest preparation
                     from src.backtest import prepare_backtest_data
+                    from src.fred_data import load_fred_data
                     
-                    # Load the SAME macro data used in backtest
+                    # Use the SAME macro data that was used in the backtest
                     macro_df = None
-                    fred_df = None
+                    
+                    # Try FRED first (matches backtest behavior)
                     try:
-                        from src.fred_data import load_fred_data
                         fred_df = load_fred_data(
                             start_date=args.start_date,
                             end_date=args.end_date,
@@ -498,15 +497,14 @@ def main():
                         )
                         if len(fred_df) >= args.min_train:
                             macro_df = fred_df
-                            logger.info("Using FRED data for regime analysis")
-                        else:
-                            if 'VIX' in returns_df.columns:
-                                macro_df = returns_df[['VIX']]
-                                logger.info("Using VIX for regime analysis (FRED insufficient)")
+                            logger.info(f"Using FRED data for regime analysis ({macro_df.shape[1]} features)")
                     except Exception as e:
-                        if 'VIX' in returns_df.columns:
-                            macro_df = returns_df[['VIX']]
-                            logger.info("Using VIX for regime analysis (FRED not available)")
+                        logger.warning(f"FRED not available for regime analysis: {e}")
+                    
+                    # Fallback to VIX if FRED not available
+                    if macro_df is None and 'VIX' in returns_df.columns:
+                        macro_df = returns_df[['VIX']]
+                        logger.info("Using VIX for regime analysis (FRED not available)")
                     
                     # Prepare data with the SAME macro_df used in backtest
                     X, y, dates = prepare_backtest_data(
@@ -517,7 +515,6 @@ def main():
                         lags=args.lags
                     )
                     
-                    # Run regime analysis
                     save_dir = get_results_dir() / 'regime_analysis'
                     regime_df, regime_stats = analyze_moe_regimes(
                         model=fitted_model,
@@ -535,6 +532,7 @@ def main():
                     traceback.print_exc()
             else:
                 logger.warning("No fitted MoE model found in results.")
+
         
         logger.info("=" * 60)
         logger.info("PIPELINE COMPLETE")

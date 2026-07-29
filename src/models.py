@@ -214,6 +214,7 @@ class MomentumModel:
     def _calculate_weights(self, n):
         """
         Calculate exponentially decaying weights.
+        Most recent observation gets highest weight.
         
         Args:
             n: Number of periods
@@ -222,7 +223,8 @@ class MomentumModel:
             numpy array: Weights summing to 1
         """
         # Exponential weights: most recent gets highest weight
-        weights = np.array([self.decay ** (n - i) for i in range(1, n + 1)])
+        # i=0 -> most recent (highest weight), i=n-1 -> oldest (lowest weight)
+        weights = np.array([self.decay ** i for i in range(n)])
         weights = weights / weights.sum()  # Normalize to sum to 1
         return weights
     
