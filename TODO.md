@@ -932,7 +932,7 @@ python run_moe_torch.py --n-experts 4 --epochs 200 --hidden-size 32
 
 ---
 
-### July 30, 2026 (Day 6) - Code Fixes, Validation & Final Stable Pipeline
+### July 30, 2026 (Day 6) - Code Fixes, Validation & Final Project Completion
 
 #### Completed Tasks
 
@@ -992,7 +992,7 @@ python run_moe_torch.py --n-experts 4 --epochs 200 --hidden-size 32
 - [x] Added robust numeric conversion and DatetimeIndex serialization to `main.py` saving logic
 - [x] **New Best Run Achieved:** `20260730_024501` (Sharpe 1.7475, Return 89.63%)
 
-**Git Commits**
+**Git Commits (Morning/Afternoon)**
 - [x] Committed `main.py` and `models.py` fixes
 - [x] Committed new `visualization.py`
 - [x] Committed `backtest.py` and `main.py` display fixes
@@ -1067,6 +1067,7 @@ The pipeline is fully stable. Your new best results are saved in `20260730_02450
   - Start with the Abstract and Introduction.
   - Use the figures from `results/paper_figures/20260730_024501/`.
   - Use the summary table from `paper_summary_table.csv`.
+
 ---
 
 #### Final Valid Results (Best Run: min_train=132, Timestamp: 20260730_024501)
@@ -1103,7 +1104,7 @@ The pipeline is fully stable. Your new best results are saved in `20260730_02450
 - `results/regime_analysis/` - Regime probabilities and summary
 - `results/predictions/20260730_024501/` - Full predictions for all models
 
-#### Git Commits
+#### Git Commits (Day 6 Morning/Afternoon)
 | Commit | Description |
 |--------|-------------|
 | 1 | Fix: Correct best model finder keys and momentum weights |
@@ -1112,7 +1113,60 @@ The pipeline is fully stable. Your new best results are saved in `20260730_02450
 | 4 | Fix: Resolve array formatting and Dict import errors in main.py |
 | 5 | Final: Add numeric conversion and DatetimeIndex serialization to main.py |
 
-**Project Status:** ✅ **Complete - Pipeline Stable & Ready for Paper Writing**
+**Project Status (Morning/Afternoon):** ✅ **Complete - Pipeline Stable & Ready for Paper Writing**
+
+---
+
+### 🌙 Evening Session – Paper & Project Finalization (July 30, 2026)
+
+#### Completed Tasks
+
+**Modernized Architecture Diagram**
+- [x] Rewrote `src/moe_architecture_plot.py` with a modern, publication-quality design:
+  - Added soft drop shadows and a subtle gradient background for a "textured" look
+  - Used a sleek, muted color palette and refined typography
+  - Removed internal formulas from boxes to reduce clutter
+  - Saved outputs to `results/figures/` with a timestamp
+- [x] Generated `moe_architecture_vertical_20260730_215355.png` and PDF
+
+**Paper Generation Script (ReportLab)**
+- [x] Created `src/generate_paper.py` using ReportLab to produce a polished 5–9 page mini research paper
+- [x] Integrated all results from `20260730_210528` (latest clean run)
+- [x] Embedded 7 paper figures and the architecture diagram
+- [x] Built dynamic tables from `summary_20260730_210528.csv` and `regime_summary.csv`
+- [x] Applied Times New Roman academic formatting with proper margins, headings, and page numbers
+- [x] Resolved ReportLab `LayoutError` by resizing Appendix architecture diagram to `6.5" x 8.5"`
+- [x] Fixed `KeyError: "Style 'BodyText' already defined"` by renaming to `PaperBody`
+
+**Paper Content Finalization**
+- [x] Removed literal "Mini Research Paper" title; used actual research title
+- [x] Updated Section 2.2 to explicitly define the Momentum model as a weighted trend-following baseline
+- [x] Added a static 1/N equal-weight benchmark note in Section 2.3
+- [x] Expanded Limitations (Section 4.3) with 3 methodological caveats:
+  - VIX spot index tradability and roll-cost risk
+  - 96-feature vs 132-month high-dimensional space
+  - FRED publication lags of 1–2 months
+- [x] Clarified transaction cost modeling (full-sequence vs per-split) in Sections 2.3 and 4.3
+- [x] Added Acknowledgments (Section 7) crediting FRED and yfinance
+
+**Git Commits (Evening)**
+- [x] Committed modernized `moe_architecture_plot.py`
+- [x] Committed finalized `generate_paper.py` with all paper content updates
+- [x] Committed final `results/paper.pdf` (generated PDF)
+
+---
+
+#### Final Project Status
+
+| Component | Status |
+|-----------|--------|
+| **Pipeline** | ✅ Stable (run `20260730_210528`) |
+| **MoE Architecture Diagram** | ✅ Modernized, saved to `results/figures/` |
+| **Mini Research Paper (PDF)** | ✅ Generated at `results/paper.pdf` |
+| **Paper Script** | ✅ `src/generate_paper.py` — fully functional |
+| **Paper Content** | ✅ Transparent, honest, no overclaiming |
+| **Legal Compliance** | ✅ FRED and yfinance acknowledged |
+| **Open-Source Ready** | ✅ All code, data, and paper publicly available |
 
 ---
 
@@ -1146,4 +1200,4 @@ The pipeline is fully stable. Your new best results are saved in `20260730_02450
 ---
 
 **Last Updated:** July 30, 2026  
-**Project Status:** ✅ **Complete - Pipeline Stable & Ready for Paper Writing**
+**Project Status:** ✅ **Complete - Pipeline Stable & Paper Ready for Publication**
