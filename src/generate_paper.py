@@ -189,9 +189,8 @@ def build_paper_content(styles):
     content = []
     
     # --- ABSTRACT ---
-    content.append(Paragraph("Mini Research Paper", styles['PaperTitle']))
-    content.append(Paragraph("Mixture of Experts for Regime-Aware Factor Timing", styles['Author']))
-    content.append(Paragraph("Ken Ira L. Alacson", styles['Author']))
+    content.append(Paragraph("Mixture of Experts for Regime-Aware Factor Timing", styles['PaperTitle']))
+    content.append(Paragraph("Ken Ira Lacson Talingting", styles['Author']))
     content.append(Paragraph("July 30, 2026", styles['DateLine']))
     
     content.append(Paragraph("<b>Abstract</b>", styles['SectionHeading']))
@@ -256,7 +255,8 @@ def build_paper_content(styles):
     content.append(Paragraph(
         "We evaluate models across three levels of complexity: (1) non-ML heuristics—persistence and 12-month "
         "rolling average; (2) standard ML baselines—linear regression and random forest (100 trees, max depth 10); "
-        "and (3) the primary contribution—a Mixture of Experts (MoE) model with K=4 linear experts, softmax gating, "
+        "(3) a simple exponentially weighted momentum model (12-month window, decay=0.9) which serves as a trend-following "
+        "baseline; and (4) the primary contribution—a Mixture of Experts (MoE) model with K=4 linear experts, softmax gating, "
         "and EM training for 100 iterations with Ridge regularization (alpha=0.1).",
         styles['PaperBody']
     ))
@@ -270,6 +270,17 @@ def build_paper_content(styles):
         "drawdown, Calmar ratio, and win rate).",
         styles['PaperBody']
     ))
+
+
+
+    content.append(Paragraph(
+        "As an additional baseline, we consider a static 1/N equal-weight portfolio consisting of the equity factors. "
+        "While not explicitly listed in Table 1, this passive allocation serves as a baseline to evaluate whether dynamic "
+        "factor timing adds true risk-adjusted value over simple diversification.",
+        styles['PaperBody']
+    ))
+
+
     
     # --- 3. RESULTS ---
     content.append(PageBreak())
@@ -418,10 +429,18 @@ def build_paper_content(styles):
     content.append(Paragraph(
         "This study has several limitations. The data sample is limited to 156 months of US equity data, "
         "which constrains model complexity and may not generalize to other markets or asset classes. The "
-        "ETF proxies used may not perfectly isolate pure factor exposures. Additionally, macroeconomic data "
-        "revisions (vintage effects) are not modeled, which is a standard limitation in backtesting studies. "
-        "Finally, the allocation strategy is long-only and does not incorporate short-selling or leverage, "
-        "which may limit the applicability of the results to certain investment mandates.",
+        "ETF proxies used may not perfectly isolate pure factor exposures. "
+        "Additionally, three methodological caveats should be noted. "
+        "First, the VIX is a spot index and is not directly tradable; a live implementation would require "
+        "VIX futures or ETFs, which incur significant roll costs. Our backtest assumes direct spot VIX exposure, "
+        "which may overstate achievable returns. "
+        "Second, the model uses 96 features with only 132 training months, creating a high-dimensional feature "
+        "space. While Ridge regularization and EM iteration stability mitigate this, some overfitting risk remains. "
+        "Third, FRED macroeconomic indicators are subject to publication lags of 1–2 months; our backtest assumes "
+        "immediate availability, which may overstate real-time performance. "
+        "Finally, macroeconomic data revisions (vintage effects) are not modeled, which is a standard limitation "
+        "in backtesting studies. The allocation strategy is long-only and does not incorporate short-selling or "
+        "leverage, which may limit the applicability of the results to certain investment mandates.",
         styles['PaperBody']
     ))
     
@@ -441,6 +460,19 @@ def build_paper_content(styles):
         "framework are publicly available, enabling practitioners and researchers to extend, critique, and "
         "improve upon this work. Future directions include incorporating additional asset classes, exploring "
         "more sophisticated gating mechanisms, and conducting formal statistical significance tests.",
+        styles['PaperBody']
+    ))
+
+
+
+
+    # --- 7. ACKNOWLEDGMENTS ---
+    content.append(PageBreak())
+    content.append(Paragraph("7. Acknowledgments", styles['SectionHeading']))
+    content.append(Paragraph(
+        "The authors acknowledge the Federal Reserve Bank of St. Louis for providing the "
+        "macroeconomic data used in this study via the FRED (Federal Reserve Economic Data) "
+        "API. Factor return data were sourced from yfinance.",
         styles['PaperBody']
     ))
     
@@ -468,8 +500,8 @@ def build_paper_content(styles):
     content.append(PageBreak())
     content.append(Paragraph("Appendix A: MoE Architecture", styles['SectionHeading']))
     if FIG_ARCHITECTURE.exists():
-        content.append(Image(str(FIG_ARCHITECTURE), width=8*inch, height=10*inch, kind='proportional'))
-        content.append(Paragraph("<i>Figure A1: Architecture of the Mixture of Experts model used in this study.</i>", styles['Caption']))
+        content.append(Image(str(FIG_ARCHITECTURE), width=6.5*inch, height=8.5*inch, kind='proportional'))
+        content.append(Paragraph("<i>Figure A1: Architecture of the Mixture of Experts model used in this study. Input: 96 features (lagged factor returns + FRED macro indicators) | Output: 6 factor returns.</i>", styles['Caption']))
     
     return content
 
