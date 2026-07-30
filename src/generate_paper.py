@@ -25,7 +25,7 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 # CONFIGURATION
 # =============================================================================
 TIMESTAMP = "20260730_210528"
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent.parent
 RESULTS_DIR = BASE_DIR / "results"
 PAPER_FIGURES_DIR = RESULTS_DIR / "paper_figures" / TIMESTAMP
 REGIME_DIR = RESULTS_DIR / "regime_analysis"
@@ -139,9 +139,9 @@ def get_styles():
         spaceBefore=8
     ))
     
-    # Body Text
+    # Body Text (renamed to PaperBody to avoid conflict)
     styles.add(ParagraphStyle(
-        name='BodyText',
+        name='PaperBody',
         parent=styles['Normal'],
         fontName='Times-Roman',
         fontSize=11,
@@ -219,7 +219,7 @@ def build_paper_content(styles):
         "exhibit pronounced cyclicality that appears connected to changing macroeconomic conditions. This time "
         "variation poses a practical challenge: how should an investor allocate across factors when the future "
         "performance of each factor is uncertain and dependent on latent, unobservable economic states?",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     content.append(Paragraph(
         "This project addresses this challenge by investigating whether a probabilistic model that explicitly "
@@ -228,14 +228,14 @@ def build_paper_content(styles):
         "linear experts trained via Expectation-Maximization. We compare this approach against simple heuristics "
         "(persistence, rolling average) and standard machine learning baselines (linear regression, random forest) "
         "using an expanding-window backtest with realistic transaction costs.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     content.append(Paragraph(
         "The primary contribution of this work is not a claim of market-beating performance, but rather a "
         "transparent, reproducible benchmark for evaluating regime-aware methods in factor timing. The full code, "
         "data pipeline, and evaluation framework are open-source, enabling practitioners and researchers to "
         "extend, critique, and build upon this foundation.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     # --- 2. METHODOLOGY ---
@@ -249,7 +249,7 @@ def build_paper_content(styles):
         "Production, Unemployment Rate, and Treasury term spreads. Feature sets include lagged factor returns "
         "(lags 1, 3, 6, and 12 months) and macroeconomic indicators, resulting in 96 features for the "
         "FRED-enhanced configuration.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     content.append(Paragraph("2.2 Models", styles['SubHeading']))
@@ -258,7 +258,7 @@ def build_paper_content(styles):
         "rolling average; (2) standard ML baselines—linear regression and random forest (100 trees, max depth 10); "
         "and (3) the primary contribution—a Mixture of Experts (MoE) model with K=4 linear experts, softmax gating, "
         "and EM training for 100 iterations with Ridge regularization (alpha=0.1).",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     content.append(Paragraph("2.3 Evaluation Framework", styles['SubHeading']))
@@ -268,7 +268,7 @@ def build_paper_content(styles):
         "weighted long-only on positive predictions, with 10 basis points transaction costs. Metrics include "
         "predictive accuracy (RMSE, MAE) and investment performance (Sharpe ratio, annualized return, maximum "
         "drawdown, Calmar ratio, and win rate).",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     # --- 3. RESULTS ---
@@ -283,7 +283,7 @@ def build_paper_content(styles):
         "ratio (2.16), it does so with lower annualized return (49.87%) and comparable risk characteristics. "
         "The MoE model's performance highlights the potential value of regime-aware allocation, even when "
         "point predictions are less accurate than simpler models.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     # Table 1
@@ -341,7 +341,7 @@ def build_paper_content(styles):
         "Regime 2 exhibits the highest average return (2.10%) and volatility (8.84%), while Regime 3 occurs most "
         "frequently (32.61%) with moderate return and volatility. Figure 4 displays the regime probabilities over "
         "time, revealing meaningful transitions that suggest sensitivity to changing market conditions.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     # Table 2: Regime summary
@@ -400,7 +400,7 @@ def build_paper_content(styles):
         "maintaining a Sharpe ratio of 1.66 and a maximum drawdown of only -7.06%. Notably, the model trades "
         "off predictive accuracy (RMSE 12.33) for superior allocation decisions, suggesting that the sign and "
         "magnitude of predictions are more important than point accuracy for investment performance.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     content.append(Paragraph("4.2 Regime Interpretability", styles['SubHeading']))
@@ -411,7 +411,7 @@ def build_paper_content(styles):
         "state. The transition dynamics shown in Figure 4 suggest that the model captures meaningful changes in "
         "market conditions, although further analysis is needed to map these regimes to specific macroeconomic "
         "events.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     content.append(Paragraph("4.3 Limitations", styles['SubHeading']))
@@ -422,7 +422,7 @@ def build_paper_content(styles):
         "revisions (vintage effects) are not modeled, which is a standard limitation in backtesting studies. "
         "Finally, the allocation strategy is long-only and does not incorporate short-selling or leverage, "
         "which may limit the applicability of the results to certain investment mandates.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     # --- 5. CONCLUSION ---
@@ -433,7 +433,7 @@ def build_paper_content(styles):
         "demonstrated strong out-of-sample performance in our backtest, achieving a Sharpe ratio of 1.66 and an "
         "annualized return of 84.68%. The model identified four distinct latent regimes with economically "
         "interpretable characteristics.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     content.append(Paragraph(
         "We emphasize that this work is not a claim of market-beating performance, but rather a transparent "
@@ -441,7 +441,7 @@ def build_paper_content(styles):
         "framework are publicly available, enabling practitioners and researchers to extend, critique, and "
         "improve upon this work. Future directions include incorporating additional asset classes, exploring "
         "more sophisticated gating mechanisms, and conducting formal statistical significance tests.",
-        styles['BodyText']
+        styles['PaperBody']
     ))
     
     # --- 6. REFERENCES ---
@@ -461,7 +461,7 @@ def build_paper_content(styles):
     ]
     
     for ref in refs:
-        content.append(Paragraph(ref, styles['BodyText']))
+        content.append(Paragraph(ref, styles['PaperBody']))
         content.append(Spacer(1, 0.05*inch))
     
     # --- APPENDIX: ARCHITECTURE DIAGRAM ---
