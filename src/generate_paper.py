@@ -265,9 +265,9 @@ def build_paper_content(styles):
     content.append(Paragraph(
         "We employ an expanding-window backtest with a minimum training size of 132 months and a 1-month test "
         "window, yielding 83 out-of-sample predictions from August 2019 to June 2026. Allocations are magnitude-"
-        "weighted long-only on positive predictions, with 10 basis points transaction costs. Metrics include "
-        "predictive accuracy (RMSE, MAE) and investment performance (Sharpe ratio, annualized return, maximum "
-        "drawdown, Calmar ratio, and win rate).",
+        "weighted long-only on positive predictions, with a modeled transaction cost of 10 basis points applied "
+        "at the portfolio level across the full backtest sequence. Metrics include predictive accuracy (RMSE, MAE) "
+        "and investment performance (Sharpe ratio, annualized return, maximum drawdown, Calmar ratio, and win rate).",
         styles['PaperBody']
     ))
 
@@ -281,7 +281,7 @@ def build_paper_content(styles):
     ))
 
 
-    
+
     # --- 3. RESULTS ---
     content.append(PageBreak())
     content.append(Paragraph("3. Results", styles['SectionHeading']))
@@ -441,6 +441,14 @@ def build_paper_content(styles):
         "Finally, macroeconomic data revisions (vintage effects) are not modeled, which is a standard limitation "
         "in backtesting studies. The allocation strategy is long-only and does not incorporate short-selling or "
         "leverage, which may limit the applicability of the results to certain investment mandates.",
+        styles['PaperBody']
+    ))
+
+
+    content.append(Paragraph(
+        "Finally, the transaction cost implementation applies costs across the full out-of-sample timeline rather "
+        "than on a per-split basis. While this does not materially affect the ranking of models, future refinements "
+        "could incorporate per-split cost modeling to more closely replicate real-world trading frictions.",
         styles['PaperBody']
     ))
     
