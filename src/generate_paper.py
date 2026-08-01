@@ -45,7 +45,7 @@ FIG_REGIME_PROBS = PAPER_FIGURES_DIR / "regime_probabilities.png"
 FIG_DOMINANT = PAPER_FIGURES_DIR / "dominant_regime.png"
 FIG_REGIME_CHAR = PAPER_FIGURES_DIR / "regime_characteristics.png"
 FIG_CUMULATIVE = PAPER_FIGURES_DIR / "cumulative_returns.png"
-FIG_ARCHITECTURE = FIGURES_DIR / "moe_architecture_vertical_20260730_215355.png"
+FIG_ARCHITECTURE = FIGURES_DIR / "moe_architecture_vertical_20260802_030023.png"
 
 # Ensure output directory exists
 OUTPUT_PDF.parent.mkdir(parents=True, exist_ok=True)
