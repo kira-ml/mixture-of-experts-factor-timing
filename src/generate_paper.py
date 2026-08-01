@@ -30,7 +30,7 @@ RESULTS_DIR = BASE_DIR / "results"
 PAPER_FIGURES_DIR = RESULTS_DIR / "paper_figures" / TIMESTAMP
 REGIME_DIR = RESULTS_DIR / "regime_analysis"
 FIGURES_DIR = RESULTS_DIR / "figures"
-OUTPUT_PDF = RESULTS_DIR / "paper.pdf"
+OUTPUT_PDF = RESULTS_DIR / "moe_factor_timing_benchmark.pdf"
 
 # Data files
 SUMMARY_CSV = RESULTS_DIR / f"summary_{TIMESTAMP}.csv"
