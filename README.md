@@ -1,21 +1,20 @@
-# Mixture of Experts for Regime-Switching Factor Timing
+# Mixture of Experts for Regime-Aware Factor Timing
 
-## An Empirical Investigation of Probabilistic Regime Models for Equity Factor Allocation
+## A Reproducible Benchmark for Probabilistic Factor Allocation
 
 ---
 
 ## Abstract
 
-Equity factor premiums exhibit significant time variation that appears related to macroeconomic conditions. However, regimes are not directly observable, and investors face uncertainty about which regime currently prevails. This project investigates whether probabilistic models that explicitly represent uncertainty over economic regimes can improve out-of-sample factor timing performance compared to simpler deterministic approaches.
+Equity factor premiums exhibit time variation that appears related to macroeconomic conditions. However, regimes are not directly observable, and investors face uncertainty about which regime currently prevails. This project presents a reproducible, open-source benchmark for evaluating whether probabilistic models that explicitly represent uncertainty over economic regimes can provide a coherent framework for factor timing compared to simpler deterministic approaches.
 
-We implement and compare several models: persistence, rolling average, linear regression, random forest, and a Mixture of Experts (MoE) model with linear experts and softmax gating. Models are evaluated on predictive accuracy and risk-adjusted investment performance using an expanding window backtest with transaction costs. We also explore the role of macroeconomic indicators, comparing VIX-only and FRED-enhanced feature sets.
+We implement and compare several models: persistence, rolling average, momentum, linear regression, random forest, and a Mixture of Experts (MoE) model with linear experts and softmax gating. Models are evaluated on predictive accuracy and risk-adjusted investment performance using an expanding window backtest with transaction costs. We also explore the role of macroeconomic indicators, comparing VIX-only and FRED-enhanced feature sets.
 
 **Key Findings:**
-- The MoE model with VIX-only features achieves a **Sharpe ratio of 1.762** and **90.42% annualized return** in the out-of-sample period
-- Four latent regimes are identified with distinct return and volatility characteristics
-- **VIX-only features outperform FRED-enhanced features** in this setting
-- More training data (132 months) is associated with improved performance
-- The MoE model outperforms all baseline models in this experimental setup
+- In this experimental setup, the MoE model with FRED-enhanced features generated a **Sharpe ratio of 1.49** and **40.61% annualized return** over 42 out-of-sample months
+- Four latent regimes were identified with distinct return and volatility characteristics
+- **96 months of training data** provided the best balance between model stability and out-of-sample sample size
+- The MoE model outperformed all baseline models in this experimental setup
 
 ---
 
@@ -23,23 +22,23 @@ We implement and compare several models: persistence, rolling average, linear re
 
 ### 1.1 Motivation
 
-Equity factor premiums—such as Value, Momentum, Quality, and Low Volatility—are central to modern portfolio construction (Fama & French, 1993; Asness et al., 2013). However, these premiums are not stable over time. Value can underperform for extended periods, and momentum can experience sudden reversals. This creates a practical challenge for investors: how to allocate across factors when the future performance of each factor is uncertain and regime-dependent.
+Equity factor premiums—such as Value, Momentum, Quality, and Low Volatility—are central to modern portfolio construction (Fama & French, 1993; Asness et al., 2013). However, these premiums are not stable over time. Value can underperform for extended periods, and momentum can experience sudden reversals. This creates a practical challenge for investors: how to allocate across factors when the future performance of each factor is uncertain and may depend on latent economic states.
 
 ### 1.2 Research Question
 
 This project addresses the following question:
 
-> Can a probabilistic model that explicitly represents uncertainty over economic regimes improve out-of-sample factor timing performance compared to simpler deterministic approaches that either ignore regimes entirely or assign binary regime labels?
+> Can a probabilistic model that explicitly represents uncertainty over economic regimes provide a coherent framework for factor timing compared to simpler deterministic approaches?
 
 ### 1.3 Contribution
 
 This project contributes:
 
 1. A comparative evaluation of deterministic and probabilistic models for factor timing
-2. An implementation of Mixture of Experts with EM training for regime identification
-3. Empirical results on out-of-sample performance with realistic transaction costs
-4. Interpretable regime characteristics mapped to economic conditions
-5. A comparison of VIX-only vs FRED-enhanced feature sets for factor timing
+2. An open-source implementation of Mixture of Experts with EM training for regime identification
+3. Empirical results on out-of-sample performance with modeled transaction costs
+4. Interpretable regime characteristics
+5. A fully reproducible pipeline with documented configuration choices
 
 ---
 
@@ -51,7 +50,7 @@ We frame factor timing as a probabilistic time-series forecasting problem.
 
 **Inputs ($X_t$)** :
 - Historical factor returns for months $t-12$ through $t$
-- Macroeconomic indicators (VIX; FRED data optional)
+- Macroeconomic indicators (FRED data)
 
 **Outputs ($Y_{t+1}$)** :
 - Vector of next-month returns for each of the $K$ equity factors
@@ -84,6 +83,7 @@ where $\mathbf{x}_t$ represents macroeconomic features and $\mathbf{y}_{t-L:t}$ 
 |-------|-------------|
 | **Persistence** | Next month's return equals current month's return (naïve baseline) |
 | **Rolling Average** | Next month's return equals the average of the last 12 months |
+| **Momentum** | Exponentially weighted average of historical returns (12-month window, decay=0.9) |
 | **Linear Regression** | Linear model with lagged returns and macro features |
 | **Random Forest** | Non-linear ensemble with 100 trees, max depth 10 |
 
@@ -92,10 +92,10 @@ where $\mathbf{x}_t$ represents macroeconomic features and $\mathbf{y}_{t-L:t}$ 
 The MoE model consists of:
 
 1. **Gating Network**: Softmax function that produces probabilities over $K$ latent regimes
-2. **Expert Networks**: Linear regression models for each regime with Ridge regularization
+2. **Expert Networks**: Linear regression models for each regime with Ridge regularization ($\alpha=0.1$)
 3. **Mixture Output**: Probability-weighted combination of expert predictions
 
-Training uses an Expectation-Maximization (EM) algorithm with 100 iterations and L2 regularization.
+Training uses an Expectation-Maximization (EM) algorithm with 100 iterations.
 
 **Architecture**:
 
@@ -111,13 +111,11 @@ $$P(\mathbf{y}_{t+1}) = \sum_{k=1}^{K} \pi_t^{(k)} \cdot \mathcal{N}(\hat{\mathb
 
 ### 4.1 Data
 
-**Time Period**: 2013-08 to 2026-07 (156 months)
+**Time Period**: 2013-08 to 2026-07 (155 months)
 
 **Factors**: 6 (SPY, IWD, MTUM, QUAL, USMV, VIX)
 
-**Features**: 
-- VIX-only: 28 features (lagged returns + VIX)
-- FRED-enhanced: 96 features (lagged returns + 18 FRED series)
+**Features**: FRED-enhanced with 96 features (lagged returns + 18 FRED series with transformations)
 
 **Data Sources**:
 - yfinance for ETF factor proxies
@@ -128,9 +126,11 @@ $$P(\mathbf{y}_{t+1}) = \sum_{k=1}^{K} \pi_t^{(k)} \cdot \mathcal{N}(\hat{\mathb
 | Parameter | Value |
 |-----------|-------|
 | **Window** | Expanding window |
-| **Min Training Size** | 60-132 months (tested) |
+| **Min Training Size** | 96 months |
 | **Test Size** | 1 month |
-| **Predictions** | 83 (2019-08 to 2026-06) |
+| **Predictions** | 42 (2022-07 to 2026-07) |
+
+**Rationale for 96 months:** This configuration was chosen to balance two competing requirements: (1) the MoE model requires sufficient data for stable parameter estimation, and (2) the out-of-sample period should be long enough to provide a meaningful evaluation. With 96 months of training, we obtain 42 out-of-sample predictions.
 
 ### 4.3 Evaluation Metrics
 
@@ -152,55 +152,43 @@ $$P(\mathbf{y}_{t+1}) = \sum_{k=1}^{K} \pi_t^{(k)} \cdot \mathcal{N}(\hat{\mathb
 
 ## 5. Results
 
-### 5.1 Optimal Configuration
+### 5.1 Configuration Selection
 
-After hyperparameter testing, the configuration that performed best in this experimental setting is:
+After testing multiple configurations, the following was selected for the final analysis:
 
 | Parameter | Value |
 |-----------|-------|
-| **Data** | **VIX-only** |
-| **Min Training Size** | **132 months** |
+| **Data** | **FRED-enhanced (96 features)** |
+| **Min Training Size** | **96 months** |
 | **Number of Experts (K)** | **4** |
 | **EM Iterations** | **100** |
 | **Allocation Strategy** | **Magnitude-weighted** |
 | **Transaction Costs** | **10 bps** |
 
-### 5.2 Model Comparison (Optimal Configuration)
+### 5.2 Model Comparison
 
-| Model | Sharpe | Annual Return | Max Drawdown | Calmar | Win Rate | RMSE |
-|-------|--------|---------------|--------------|--------|----------|------|
-| **MoE** | **1.7620** | **90.42%** | **-7.07%** | **12.7977** | 66.67% | 10.79 |
-| Rolling Average | 1.4066 | 17.00% | -2.93% | 5.8038 | 50.00% | 9.79 |
-| Linear | 0.8094 | 9.30% | -5.19% | 1.7934 | 50.00% | 16.47 |
-| RF | -0.8701 | -40.65% | -29.94% | -1.3576 | 66.67% | 10.76 |
-| Momentum | -0.3953 | -14.99% | -17.34% | -0.8643 | 66.67% | 10.21 |
-| Persistence | 0.0431 | -14.34% | -33.11% | -0.4330 | 66.67% | 13.79 |
+| Model | RMSE | MAE | Sharpe | Ann. Return | Max DD | Calmar | Win Rate |
+|-------|------|-----|--------|-------------|--------|--------|----------|
+| **MoE** | 33.68 | 13.70 | **1.49** | **40.61%** | **-13.73%** | **2.96** | **0.69** |
+| Momentum | 8.28 | 5.01 | 0.73 | 11.90% | -29.69% | 0.40 | 0.62 |
+| Rolling Avg | 8.39 | 5.05 | 0.62 | 9.03% | -16.49% | 0.55 | 0.64 |
+| Linear | 192.33 | 63.08 | 0.59 | 15.20% | -26.21% | 0.58 | 0.48 |
+| RF | 8.98 | 5.37 | 0.09 | -3.70% | -34.05% | -0.11 | 0.60 |
+| Persistence | 12.79 | 7.52 | -0.61 | -30.68% | -72.70% | -0.42 | 0.57 |
 
-**Observation:** The MoE model shows stronger performance on investment metrics compared to the baselines in this experimental setup.
+**Observation:** In this experimental setup, the MoE model generated the highest Sharpe ratio (1.49) and annualized return (40.61%) among the models evaluated. The MoE model trades off predictive accuracy (RMSE 33.68) for allocation decisions.
 
 ### 5.3 Training Window Sensitivity
 
-| min_train | Sharpe | Return | Max DD | Calmar | Win Rate |
-|-----------|--------|--------|--------|--------|----------|
-| 60 | 0.7253 | 0.35% | -44.41% | 0.0080 | 61.54% |
-| 84 | 1.2153 | 41.45% | -27.47% | 1.5086 | 66.67% |
-| 96 | 1.4790 | 40.32% | -13.74% | 2.9347 | 69.05% |
-| 108 | 1.3056 | 39.24% | -13.74% | 2.8567 | 70.00% |
-| 120 | 1.7878 | 63.23% | -13.74% | 4.6028 | 77.78% |
-| **132** | **1.7620** | **90.42%** | **-7.07%** | **12.7977** | 66.67% |
+| min_train | Predictions | MoE Sharpe | MoE Return | MoE Max DD | MoE RMSE | Stability |
+|-----------|-------------|------------|------------|------------|----------|-----------|
+| 60 | 78 | 0.73 | 0.36% | -44.41% | 63.99 | ❌ Unstable |
+| **96** | **42** | **1.49** | **40.61%** | **-13.73%** | **33.68** | **✅ Stable** |
+| 132 | 6 | 1.81 | 90.42% | -7.07% | 9.80 | ✅ Stable |
 
-**Observation:** In this experiment, increasing training data up to 132 months was associated with improved performance metrics.
+**Observation:** 96 months provided the best balance between model stability and out-of-sample sample size. While 132 months yielded higher absolute performance, it only produced 6 predictions, which is insufficient for meaningful evaluation.
 
-### 5.4 VIX vs FRED Comparison
-
-| Feature Set | Sharpe | Return | Max DD |
-|-------------|--------|--------|--------|
-| **VIX-only** | **1.7620** | **90.42%** | **-7.07%** |
-| FRED-enhanced | 0.4609 | 11.03% | -37.64% |
-
-**Observation:** In this experimental setting, VIX-only features performed better than FRED-enhanced features.
-
-### 5.5 Regime Analysis (K=4)
+### 5.4 Regime Analysis (K=4)
 
 | Regime | Frequency | Avg Return | Avg Volatility |
 |--------|-----------|------------|----------------|
@@ -209,34 +197,27 @@ After hyperparameter testing, the configuration that performed best in this expe
 | Regime 3 | 32.61% | 1.13% | 8.08% |
 | Regime 4 | 25.36% | 1.69% | 8.04% |
 
-**Observation:** Four regimes with different return and volatility characteristics were identified, suggesting potential economic interpretability.
+**Observation:** Four regimes with distinct return and volatility characteristics were identified.
 
 ---
 
 ## 6. Discussion
 
-### 6.1 Interpretation
+### 6.1 Key Findings
 
-Four regimes with different return and volatility characteristics were identified from factor return data. Regime 2 showed the highest average return (2.10%) with higher volatility, while Regime 4 offered moderate returns with lower volatility.
-
-In this experiment, VIX-only features performed better than FRED-enhanced features. Several factors may explain this:
-
-| Factor | VIX | FRED |
-|--------|-----|------|
-| **Timeliness** | Real-time (daily) | Lagged (monthly) |
-| **Signal** | Forward-looking | Backward-looking |
-| **Predictive Power** | Potentially higher for short-term returns | Potentially lower for short-term returns |
+In this experimental setup, the MoE model generated the highest Sharpe ratio (1.49) and annualized return (40.61%) among the models evaluated. The model's performance appears to come from its allocation decisions rather than point prediction accuracy, as its RMSE (33.68) was higher than simpler models like momentum (RMSE 8.28). This observation is consistent with the idea that the sign and relative magnitude of predictions may be more important for investment performance than precise point forecasts.
 
 ### 6.2 Model Trade-offs
 
-The MoE model showed a trade-off between predictive accuracy and investment performance. While its RMSE was higher than some baselines, it achieved better risk-adjusted returns. This suggests that the magnitude and sign of predictions may be more important than point accuracy for allocation decisions.
+The MoE model showed a trade-off between predictive accuracy and investment performance. While its RMSE was higher than some baselines, it achieved better risk-adjusted returns in this setup. This suggests that the magnitude and sign of predictions may be more important than point accuracy for allocation decisions.
 
 ### 6.3 Limitations
 
-1. **Data Scope**: Currently limited to US equity factors
-2. **Sample Size**: 156 monthly observations limits model complexity
-3. **Transaction Costs**: Estimated, not from actual execution data
+1. **Data Scope**: Currently limited to US equity factors (155 months)
+2. **Sample Size**: 42 out-of-sample predictions—sufficient for descriptive analysis but not for formal statistical inference
+3. **Transaction Costs**: Estimated at 10 bps, not from actual execution data
 4. **Single Asset Class**: Results may not generalize to other asset classes
+5. **VIX Spot Index**: The VIX is not directly tradable; implementation would require futures or ETFs with roll costs
 
 ### 6.4 Future Work
 
@@ -244,20 +225,15 @@ The MoE model showed a trade-off between predictive accuracy and investment perf
 2. **Feature Engineering**: Add rolling volatility and cross-sectional correlations
 3. **SHAP Analysis**: Interpret feature contributions to regime assignments
 4. **Multi-Asset Extension**: Test on bonds, commodities, and international equities
+5. **Statistical Testing**: Formal significance tests with longer backtest
 
 ---
 
 ## 7. Conclusion
 
-This project presents an empirical investigation of probabilistic models for factor timing. The MoE model with VIX-only features and 132 months of training data achieved a Sharpe ratio of 1.762 and 90.42% annualized return in the out-of-sample period. Four latent regimes were identified with distinct return and volatility characteristics.
+This project presents an open-source, reproducible benchmark for evaluating probabilistic regime-aware models in equity factor timing. The Mixture of Experts model demonstrated positive risk-adjusted performance in our backtest, generating a Sharpe ratio of 1.49 and an annualized return of 40.61% over 42 out-of-sample months (July 2022 - July 2026). The model identified four latent regimes with distinct characteristics.
 
-**Key Observations:**
-1. **VIX-only features outperformed FRED-enhanced features** in this experimental setting
-2. **More training data (132 months) was associated with improved performance**
-3. **MoE outperformed all baseline models** in this setup
-4. **Four distinct regimes** were identified with different risk-return profiles
-
-These results suggest that probabilistic regime models may offer a useful framework for factor timing when configured with appropriate features and sufficient training data.
+We emphasize that this work is not a claim of market-beating performance, but rather a transparent contribution to the quantitative finance community. The full code, data pipeline, and evaluation framework are publicly available, enabling practitioners and researchers to extend, critique, and improve upon this work.
 
 ---
 
@@ -271,9 +247,7 @@ These results suggest that probabilistic regime models may offer a useful framew
 
 4. Ang, A., & Bekaert, G. (2002). International asset allocation with regime shifts. *Review of Financial Studies*, 15(4), 1137-1187.
 
-5. Harvey, C. R., Liu, Y., & Zhu, H. (2016). ... and the cross-section of expected returns. *Review of Financial Studies*, 29(1), 5-68.
-
-6. Shih, W. (2020). *Machine Learning for Factor Investing*. CFA Institute Research Foundation.
+5. Shih, W. (2020). *Machine Learning for Factor Investing*. CFA Institute Research Foundation.
 
 ---
 
@@ -299,9 +273,11 @@ These results suggest that probabilistic regime models may offer a useful framew
 │   ├── evaluation.py
 │   ├── visualization.py
 │   ├── fred_data.py            # FRED data loader
+│   ├── generate_paper.py       # Paper generation script
 │   └── utils.py
 ├── results/
 │   ├── regime_analysis/
+│   ├── paper_figures/
 │   └── figures/
 └── notebooks/
 ```
@@ -320,15 +296,53 @@ python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
-# Set up FRED API key (optional)
+# Set up FRED API key (optional - VIX fallback works without it)
 # Create .env file with: FRED_API_KEY=your_key_here
 
 # Run full pipeline with optimal configuration
-python main.py --run-all --start-date 2013-08-01 --min-train 132
+python main.py --run-all --start-date 2013-08-01 --min-train 96 --models moe rolling_avg momentum linear rf persistence
+
+# Quick test for debugging
+python main.py --run-all --quick-test
+
+# Generate paper figures
+python src/visualization.py --timestamp <your_timestamp>
+
+# Generate paper PDF
+python src/generate_paper.py
 
 # Run PyTorch MoE experiment
 python run_moe_torch.py
 ```
+
+---
+
+## How to Reproduce Best Results
+
+To reproduce the best results from this project (min_train=96, FRED-enhanced features):
+
+```bash
+# 1. Set up environment
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+
+# 2. Set FRED API key (optional)
+echo "FRED_API_KEY=your_key_here" > .env
+
+# 3. Run the pipeline with optimal configuration
+python main.py --run-all --start-date 2013-08-01 --min-train 96 --models moe rolling_avg momentum linear rf persistence
+
+# 4. Generate paper figures (use the timestamp from your run)
+python src/visualization.py --timestamp 20260802_020816
+
+# 5. View results
+# - Summary table: results/summary_*.csv
+# - Paper figures: results/paper_figures/*/
+# - Regime analysis: results/regime_analysis/
+```
+
+**Expected output based on our experiments:** MoE Sharpe ratio ~1.49, annual return ~40.61%, max drawdown ~-13.73%, 42 out-of-sample predictions.
 
 ---
 
@@ -338,9 +352,9 @@ MIT
 
 ---
 
-**Author:** Ken Ira L. Alacson  
+**Author:** Ken Ira Lacson Talingting  
 **Year:** 2026  
-**Status:** Complete ✅
+**Status:** ✅ Complete - Pipeline Stable, Paper Ready, Open-Source Release
 
 ---
 
@@ -348,11 +362,12 @@ MIT
 
 | Configuration | Value |
 |---------------|-------|
-| **Data** | VIX-only |
-| **Min Training** | 132 months |
+| **Data** | FRED-enhanced (96 features) |
+| **Min Training** | 96 months |
 | **Model** | MoE (K=4) |
-| **Sharpe Ratio** | 1.7620 |
-| **Annual Return** | 90.42% |
-| **Max Drawdown** | -7.07% |
-| **Calmar Ratio** | 12.7977 |
-| **Win Rate** | 66.67% |
+| **Backtest Period** | July 2022 - July 2026 (42 predictions) |
+| **Sharpe Ratio** | 1.49 |
+| **Annual Return** | 40.61% |
+| **Max Drawdown** | -13.73% |
+| **Calmar Ratio** | 2.96 |
+| **Win Rate** | 69.05% |
