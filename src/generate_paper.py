@@ -325,7 +325,7 @@ def build_paper_content(styles):
     # Figure 2: Cumulative Returns Comparison
     if FIG_CUMULATIVE.exists():
         content.append(Image(str(FIG_CUMULATIVE), width=7.5*inch, height=4*inch, kind='proportional'))
-        content.append(Paragraph("<i>Figure 2: Cumulative returns comparison across MoE, Rolling Average, and Equal-Weight benchmark (42 months, July 2022 - July 2026).</i>", styles['Caption']))
+        content.append(Paragraph("<i>Figure 2: Cumulative returns comparison across MoE, Rolling Average, and Equal-Weight benchmark. The backtest period is July 2022 to July 2026 (42 predictions); non-zero returns begin in January 2023 due to the 6-month turnover calculation period for transaction costs.</i>", styles['Caption']))
     content.append(Spacer(1, 0.15*inch))
     
     # Figure 3: RMSE vs Sharpe
