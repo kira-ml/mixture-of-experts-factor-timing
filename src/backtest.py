@@ -245,13 +245,18 @@ def run_backtest(
     # Store results
     results = {}
     
-    # Create progress bar
+    # Calculate total splits once
     total_splits = n - min_train_size - test_size + 1
     if total_splits <= 0:
         logger.error(f"Not enough data for backtest with min_train_size={min_train_size}. Need at least {min_train_size + test_size} observations.")
         return results
     
-    iterator = tqdm(range(total_splits), desc="Backtesting") if verbose else range(total_splits)
+    # Get splits once (same for all models)
+    splits = expanding_window_split(X, y, dates, min_train_size, test_size)
+    
+    if len(splits) == 0:
+        logger.warning("No backtest splits available.")
+        return results
     
     for model_config in model_configs:
         model_name = model_config['name']
@@ -266,20 +271,8 @@ def run_backtest(
         all_portfolio_returns = []
         last_fitted_model = None
         
-        # Get splits
-        splits = expanding_window_split(X, y, dates, min_train_size, test_size)
-        
-        # Check if we have any splits
-        if len(splits) == 0:
-            logger.warning(f"No backtest splits available for {model_name}. Skipping.")
-            results[model_name] = {
-                'predictions': pd.DataFrame(columns=factor_names),
-                'actuals': pd.DataFrame(columns=factor_names),
-                'dates': [],
-                'metrics': {},
-                'fitted_model': None
-            }
-            continue
+        # Create a fresh iterator for each model (fixes the consumed iterator bug)
+        iterator = tqdm(range(len(splits)), desc=f"Backtesting {model_name}") if verbose else range(len(splits))
         
         for split_idx in iterator:
             train_idx = splits[split_idx]['train_idx']
@@ -325,6 +318,18 @@ def run_backtest(
                 all_dates.append(test_date)
                 all_portfolio_returns.append(np.zeros(1))
         
+        # Skip if no predictions were collected
+        if len(all_predictions) == 0:
+            logger.warning(f"No predictions collected for {model_name}. Skipping.")
+            results[model_name] = {
+                'predictions': pd.DataFrame(columns=factor_names),
+                'actuals': pd.DataFrame(columns=factor_names),
+                'dates': [],
+                'metrics': {},
+                'fitted_model': None
+            }
+            continue
+        
         # Combine results
         predictions_df = pd.DataFrame(
             np.vstack(all_predictions),
@@ -348,9 +353,17 @@ def run_backtest(
             columns=factor_names
         )
         
-        # Portfolio returns DataFrame (for evaluation)
+        # Portfolio returns DataFrame (for evaluation) - flatten nested arrays
+        flattened_returns = []
+        for r in all_portfolio_returns:
+            if isinstance(r, (np.ndarray, list)):
+                arr = np.array(r).flatten()
+                flattened_returns.append(float(arr[0]) if len(arr) > 0 else 0.0)
+            else:
+                flattened_returns.append(float(r))
+        
         portfolio_returns_df = pd.DataFrame(
-            {'portfolio_returns': all_portfolio_returns},
+            {'portfolio_returns': flattened_returns},
             index=all_dates
         )
         # Drop any rows where returns are NaN (no prediction made)

@@ -211,18 +211,8 @@ def validate_factor_returns(
     returns_df: pd.DataFrame,
     expected_factors: Optional[List[str]] = None
 ) -> Tuple[bool, Dict[str, Any]]:
-    """
-    Specialized validation for factor returns data.
-    
-    Args:
-        returns_df: DataFrame of factor returns
-        expected_factors: List of expected factor names
-        
-    Returns:
-        Tuple of (passed: bool, details: dict)
-    """
     if expected_factors is None:
-        expected_factors = ['Value', 'Momentum', 'Quality', 'LowVol', 'Size']
+        expected_factors = ['SPY', 'IWD', 'MTUM', 'QUAL', 'USMV', 'VIX']
     
     # Basic consistency check
     passed, details = check_data_consistency(

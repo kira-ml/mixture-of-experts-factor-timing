@@ -118,10 +118,16 @@ Examples:
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
         help='Logging level'
     )
+
     parser.add_argument(
         '--no-console-log',
         action='store_true',
         help='Disable console logging'
+    )
+    parser.add_argument(
+        '--quick-test',
+        action='store_true',
+        help='Run with minimal settings for fast debugging (24 months, 2 lags, 3 models)'
     )
     
     return parser.parse_args()
@@ -399,6 +405,17 @@ def save_results(results: dict, args) -> None:
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=4, default=str)
     logger.info(f"Config saved to {config_path}")
+    
+    # Save pip freeze (for reproducibility)
+    import subprocess
+    try:
+        result = subprocess.run(['pip', 'freeze'], capture_output=True, text=True, timeout=10)
+        freeze_path = results_dir / f'requirements_{timestamp}.txt'
+        with open(freeze_path, 'w') as f:
+            f.write(result.stdout)
+        logger.info(f"Requirements saved to {freeze_path}")
+    except Exception as e:
+        logger.warning(f"Could not save pip freeze: {e}")
 
 
 
@@ -409,6 +426,17 @@ def main():
     """
     # Parse arguments
     args = parse_args()
+    
+    # Apply quick-test settings if enabled
+    if args.quick_test:
+        print("⚡ Quick-test mode enabled: reducing data/model complexity")
+        args.min_train = 24
+        args.lags = [1, 3]
+        # Only keep the simplest models for quick test
+        quick_models = ['persistence', 'rolling_avg', 'moe']
+        args.models = [m for m in quick_models if m in args.models] or quick_models
+    
+
     
     # Setup logging
     setup_logging(
