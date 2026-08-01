@@ -206,7 +206,7 @@ def draw_moe_architecture_vertical():
     # ==================== FOOTER (Clean & Minimal) ====================
     footer_text = (
         "K = 4 Experts | EM Training (100 iter) | Ridge Regularization (α = 0.1)\n"
-        "Input: 28 Features | Output: 6 Factor Returns"
+        "Input: 96 Features | Output: 6 Factor Returns"
     )
     
     footer_box = FancyBboxPatch((1.5, 0.2), 9.0, 1.0, boxstyle="round,pad=0.1,rounding_size=0.05",
