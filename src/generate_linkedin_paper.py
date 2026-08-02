@@ -182,9 +182,11 @@ def build_content(styles):
         "precise point forecasts in this setup.",
         styles['PaperBody']
     ))
+    
     story.append(Paragraph(
         "<b>Limitations:</b> This benchmark is based on 42 out-of-sample months of US equity data. Results are "
-        "descriptive rather than inferential, and may not generalize to other markets or asset classes. The VIX "
+        "descriptive rather than inferential, and are not sufficient for formal statistical inference regarding "
+        "the true population Sharpe ratio. Findings may not generalize to other markets or asset classes. The VIX "
         "spot index is not directly tradable, and FRED data are assumed to be available immediately.",
         styles['PaperBody']
     ))
