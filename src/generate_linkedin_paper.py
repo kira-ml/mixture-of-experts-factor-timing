@@ -7,6 +7,7 @@ Designed to be visually scannable, modern, and engaging for recruiters.
 Expanded to emphasize problem framing and research context while staying concise.
 Tone: Strictly humble, objective, and academically grounded.
 STYLE: Upgraded to academic working-paper format (Times New Roman, clean layout).
+FIXED: Page 2 figure spacing (removed large unused white space).
 """
 
 from pathlib import Path
@@ -123,7 +124,7 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
-    # --- KEY RESULTS CALLOUT (Boxed or emphasized) ---
+    # --- KEY RESULTS CALLOUT ---
     story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph(
         "<b>Key Results (42 out-of-sample months):</b><br/>"
@@ -141,12 +142,14 @@ def build_content(styles):
         "• <b>Backtest:</b> Expanding window, min_train=96, 10 bps costs.",
         styles['PaperBody']
     ))
-    story.append(Spacer(1, 0.1*inch))
+    story.append(Spacer(1, 0.05*inch))
 
     # --- FIGURE (Regime Probabilities) ---
     story.append(Paragraph("<b>Figure 1: Regime Uncertainty Over Time</b>", styles['SubHeading']))
     if REGIME_PROBS_PATH.exists():
-        story.append(Image(str(REGIME_PROBS_PATH), width=6.5*inch, height=2.8*inch, kind='proportional'))
+        # FIX: Increased width to 7.0" and reduced spacings to eliminate white space
+        story.append(Image(str(REGIME_PROBS_PATH), width=7.0*inch, height=3.0*inch, kind='proportional'))
+        story.append(Spacer(1, 0.02*inch))
         story.append(Paragraph("<i>MoE dynamically assigns probabilities to 4 latent economic regimes.</i>", styles['Caption']))
     else:
         story.append(Paragraph("<i>[Figure not found. Run visualization.py first.]</i>", styles['Caption']))
