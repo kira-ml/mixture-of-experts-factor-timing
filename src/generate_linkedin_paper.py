@@ -3,39 +3,30 @@
 generate_linkedin_paper.py
 
 Generates a 2-page LinkedIn-optimized research summary PDF using ReportLab.
-Designed to be visually scannable, modern, and engaging for recruiters.
-Expanded to emphasize problem framing and research context while staying concise.
-Tone: Strictly humble, objective, and academically grounded.
-STYLE: Upgraded to academic working-paper format (Times New Roman, clean layout).
-FIXED: Page 2 figure spacing (removed large unused white space).
+FIXED: Figure stays with caption, no white space, proper page breaks.
 """
 
 from pathlib import Path
-from datetime import datetime
-
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, HRFlowable
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, 
+    HRFlowable, KeepTogether
 )
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 
 # --- CONFIGURATION ---
 OUTPUT_DIR = Path("results")
 OUTPUT_FILENAME = "linkedin_research_summary_academic.pdf"
-
-# Path to your latest figures (from 20260802_020816)
 FIGURE_DIR = Path("results/paper_figures/20260802_020816")
 REGIME_PROBS_PATH = FIGURE_DIR / "regime_probabilities.png"
 
 
 def get_styles():
-    """Define custom ParagraphStyles for a clean, academic layout."""
     styles = getSampleStyleSheet()
     
-    # Academic font: Times-Roman (serif, professional)
     styles.add(ParagraphStyle(
         name='PaperTitle', parent=styles['Title'], fontName='Times-Bold',
         fontSize=20, leading=24, alignment=TA_CENTER, spaceAfter=6
@@ -77,32 +68,20 @@ def get_styles():
         name='TableHeader', parent=styles['Normal'], fontName='Times-Bold',
         fontSize=10, alignment=TA_CENTER
     ))
-    styles.add(ParagraphStyle(
-        name='TableCell', parent=styles['Normal'], fontName='Times-Roman',
-        fontSize=9, alignment=TA_CENTER
-    ))
     return styles
 
 
 def build_content(styles):
-    """Build the 2-page flowable content for the PDF with academic styling."""
     story = []
 
-    # ===============================
-    # PAGE 1: TITLE, PROBLEM FRAMING, KEY RESULTS
-    # ===============================
-
+    # ================= PAGE 1 =================
     story.append(Paragraph("Mixture of Experts for Regime-Aware Factor Timing", styles['PaperTitle']))
     story.append(Paragraph("A Reproducible Benchmark for Probabilistic Factor Allocation", styles['SubTitle']))
     story.append(Paragraph("Ken Ira Lacson Talingting", styles['Author']))
     story.append(Paragraph("August 3, 2026", styles['DateLine']))
-
-    # Subtle horizontal line after title block
     story.append(HRFlowable(width="100%", thickness=1, color=colors.lightgrey, spaceAfter=12))
 
-    # --- 1. PROBLEM FRAMING ---
     story.append(Paragraph("<b>1. Problem Framing</b>", styles['SectionHeading']))
-    
     story.append(Paragraph(
         "Equity factor premiums—such as Value, Momentum, Quality, and Low Volatility—are central to modern "
         "portfolio construction. However, a substantial body of empirical evidence shows that these premiums "
@@ -124,7 +103,6 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
-    # --- KEY RESULTS CALLOUT ---
     story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph(
         "<b>Key Results (42 out-of-sample months):</b><br/>"
@@ -133,7 +111,6 @@ def build_content(styles):
     ))
     story.append(Spacer(1, 0.1*inch))
 
-    # --- 2. METHODOLOGY ---
     story.append(Paragraph("<b>2. Methodology</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "• <b>Data:</b> 155 months (2013–2026), 6 factors (SPY, IWD, MTUM, QUAL, USMV, VIX), FRED macro.<br/>"
@@ -142,25 +119,27 @@ def build_content(styles):
         "• <b>Backtest:</b> Expanding window, min_train=96, 10 bps costs.",
         styles['PaperBody']
     ))
-    story.append(Spacer(1, 0.05*inch))
 
-    # --- FIGURE (Regime Probabilities) ---
-    story.append(Paragraph("<b>Figure 1: Regime Uncertainty Over Time</b>", styles['SubHeading']))
-    if REGIME_PROBS_PATH.exists():
-        # FIX: Increased width to 7.0" and reduced spacings to eliminate white space
-        story.append(Image(str(REGIME_PROBS_PATH), width=7.0*inch, height=3.0*inch, kind='proportional'))
-        story.append(Spacer(1, 0.02*inch))
-        story.append(Paragraph("<i>MoE dynamically assigns probabilities to 4 latent economic regimes.</i>", styles['Caption']))
-    else:
-        story.append(Paragraph("<i>[Figure not found. Run visualization.py first.]</i>", styles['Caption']))
-    
+    # ================= FORCED PAGE BREAK BEFORE FIGURE =================
     story.append(PageBreak())
 
-    # ===============================
-    # PAGE 2: RESULTS, DISCUSSION, LIMITATIONS, CONCLUSIONS
-    # ===============================
+    # ================= PAGE 2 (FIGURE ONLY) =================
+    # Wrap the figure + caption in KeepTogether so they never split
+    figure_block = []
+    figure_block.append(Paragraph("<b>Figure 1: Regime Uncertainty Over Time</b>", styles['SubHeading']))
+    if REGIME_PROBS_PATH.exists():
+        figure_block.append(Image(str(REGIME_PROBS_PATH), width=7.0*inch, height=3.0*inch, kind='proportional'))
+        figure_block.append(Spacer(1, 0.02*inch))
+        figure_block.append(Paragraph("<i>MoE dynamically assigns probabilities to 4 latent economic regimes.</i>", styles['Caption']))
+    else:
+        figure_block.append(Paragraph("<i>[Figure not found. Run visualization.py first.]</i>", styles['Caption']))
+    
+    story.append(KeepTogether(figure_block))
+    
+    # ================= PAGE BREAK BEFORE RESULTS TABLE =================
+    story.append(PageBreak())
 
-    # --- 3. RESULTS TABLE ---
+    # ================= PAGE 3 (RESULTS & REST) =================
     story.append(Paragraph("<b>3. Results Summary</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "In this experimental setup, the MoE model generated the highest Sharpe ratio (1.49) and annualized "
@@ -185,7 +164,6 @@ def build_content(styles):
         ('FONTSIZE', (0,0), (-1,-1), 9),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        # Clean academic table: only horizontal lines, no vertical grid
         ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
         ('LINEBELOW', (0,1), (-1,-1), 0.5, colors.grey),
         ('LINEABOVE', (0,0), (-1,0), 1.5, colors.black),
@@ -196,7 +174,6 @@ def build_content(styles):
     story.append(table)
     story.append(Spacer(1, 0.1*inch))
 
-    # --- 4. DISCUSSION & LIMITATIONS ---
     story.append(Paragraph("<b>4. Discussion & Limitations</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "The MoE model's performance appears to come from its allocation decisions rather than point prediction "
@@ -205,7 +182,6 @@ def build_content(styles):
         "precise point forecasts in this setup.",
         styles['PaperBody']
     ))
-    
     story.append(Paragraph(
         "<b>Limitations:</b> This benchmark is based on 42 out-of-sample months of US equity data. Results are "
         "descriptive rather than inferential, and are not sufficient for formal statistical inference regarding "
@@ -214,7 +190,6 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
-    # --- 5. CONCLUSION ---
     story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph("<b>5. Conclusion</b>", styles['SectionHeading']))
     story.append(Paragraph(
@@ -224,7 +199,6 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
-    # --- 6. REFERENCES & DATA SOURCES ---
     story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph("<b>References & Data Sources</b>", styles['SectionHeading']))
     story.append(Paragraph(
@@ -244,7 +218,6 @@ def build_content(styles):
 
 
 def main():
-    """Generate the 2-page LinkedIn research summary PDF."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = OUTPUT_DIR / OUTPUT_FILENAME
 
@@ -261,7 +234,7 @@ def main():
     )
     doc.build(story)
 
-    print(f"✅ Academic-style LinkedIn research summary saved to: {output_path}")
+    print(f"✅ FINAL FIXED PDF saved to: {output_path}")
     print(f"   Page count: ~{doc.page}")
 
 
