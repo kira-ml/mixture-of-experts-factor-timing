@@ -183,6 +183,15 @@ def build_content(styles):
     ))
     story.append(Spacer(1, 0.1*inch))
 
+    # ================= NEW: DATA SOURCES ACKNOWLEDGMENT =================
+    story.append(Paragraph("<b>6. Data Sources</b>", styles['SectionHeading']))
+    story.append(Paragraph(
+        "<b>FRED:</b> Federal Reserve Bank of St. Louis (fred.stlouisfed.org)<br/>"
+        "<b>yfinance:</b> Yahoo Finance historical data (finance.yahoo.com)",
+        styles['PaperBody']
+    ))
+    story.append(Spacer(1, 0.1*inch))
+
     # --- CTA BOX (Visually distinct) ---
     story.append(Paragraph(
         "<b>📄 Read the full paper & explore the code:</b><br/>"
