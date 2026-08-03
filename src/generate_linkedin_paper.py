@@ -6,6 +6,7 @@ Generates a 2-page LinkedIn-optimized research summary PDF using ReportLab.
 Designed to be visually scannable, modern, and engaging for recruiters.
 Expanded to emphasize problem framing and research context while staying concise.
 Tone: Strictly humble, objective, and academically grounded.
+STYLE: Upgraded to academic working-paper format (Times New Roman, clean layout).
 """
 
 from pathlib import Path
@@ -16,13 +17,13 @@ from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, HRFlowable
 )
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 
 # --- CONFIGURATION ---
 OUTPUT_DIR = Path("results")
-OUTPUT_FILENAME = "linkedin_research_summary.pdf"
+OUTPUT_FILENAME = "linkedin_research_summary_academic.pdf"
 
 # Path to your latest figures (from 20260802_020816)
 FIGURE_DIR = Path("results/paper_figures/20260802_020816")
@@ -30,51 +31,60 @@ REGIME_PROBS_PATH = FIGURE_DIR / "regime_probabilities.png"
 
 
 def get_styles():
-    """Define custom ParagraphStyles for a clean, modern layout."""
+    """Define custom ParagraphStyles for a clean, academic layout."""
     styles = getSampleStyleSheet()
     
+    # Academic font: Times-Roman (serif, professional)
     styles.add(ParagraphStyle(
-        name='PaperTitle', parent=styles['Title'], fontName='Times-Roman',
-        fontSize=18, leading=22, alignment=TA_CENTER, spaceAfter=6
+        name='PaperTitle', parent=styles['Title'], fontName='Times-Bold',
+        fontSize=20, leading=24, alignment=TA_CENTER, spaceAfter=6
+    ))
+    styles.add(ParagraphStyle(
+        name='SubTitle', parent=styles['Normal'], fontName='Times-Roman',
+        fontSize=12, alignment=TA_CENTER, spaceAfter=12, textColor=colors.darkgrey
     ))
     styles.add(ParagraphStyle(
         name='Author', parent=styles['Normal'], fontName='Times-Roman',
-        fontSize=12, alignment=TA_CENTER, spaceAfter=12
+        fontSize=12, alignment=TA_CENTER, spaceAfter=4
     ))
     styles.add(ParagraphStyle(
         name='DateLine', parent=styles['Normal'], fontName='Times-Roman',
-        fontSize=10, alignment=TA_CENTER, spaceAfter=12, textColor=colors.grey
+        fontSize=10, alignment=TA_CENTER, spaceAfter=16, textColor=colors.grey
     ))
     styles.add(ParagraphStyle(
         name='SectionHeading', parent=styles['Heading2'], fontName='Times-Bold',
-        fontSize=13, spaceAfter=6, spaceBefore=10
+        fontSize=14, spaceAfter=6, spaceBefore=12, alignment=TA_LEFT
     ))
     styles.add(ParagraphStyle(
         name='SubHeading', parent=styles['Heading3'], fontName='Times-Bold',
-        fontSize=11, spaceAfter=4, spaceBefore=6
+        fontSize=12, spaceAfter=4, spaceBefore=8, alignment=TA_LEFT
     ))
     styles.add(ParagraphStyle(
         name='PaperBody', parent=styles['Normal'], fontName='Times-Roman',
-        fontSize=11, leading=13, spaceAfter=4, alignment=TA_JUSTIFY
+        fontSize=11, leading=14, spaceAfter=6, alignment=TA_JUSTIFY
     ))
     styles.add(ParagraphStyle(
         name='Callout', parent=styles['Normal'], fontName='Times-Roman',
-        fontSize=12, leading=14, spaceAfter=8, alignment=TA_CENTER,
+        fontSize=12, leading=16, spaceAfter=10, alignment=TA_CENTER,
         textColor=colors.darkblue
     ))
     styles.add(ParagraphStyle(
         name='Caption', parent=styles['Normal'], fontName='Times-Roman',
-        fontSize=9, leading=10, alignment=TA_CENTER, spaceAfter=6
+        fontSize=9, leading=11, alignment=TA_CENTER, spaceAfter=10, textColor=colors.grey
     ))
     styles.add(ParagraphStyle(
         name='TableHeader', parent=styles['Normal'], fontName='Times-Bold',
         fontSize=10, alignment=TA_CENTER
     ))
+    styles.add(ParagraphStyle(
+        name='TableCell', parent=styles['Normal'], fontName='Times-Roman',
+        fontSize=9, alignment=TA_CENTER
+    ))
     return styles
 
 
 def build_content(styles):
-    """Build the 2-page flowable content for the PDF."""
+    """Build the 2-page flowable content for the PDF with academic styling."""
     story = []
 
     # ===============================
@@ -82,10 +92,14 @@ def build_content(styles):
     # ===============================
 
     story.append(Paragraph("Mixture of Experts for Regime-Aware Factor Timing", styles['PaperTitle']))
-    story.append(Paragraph("A Reproducible Benchmark for Probabilistic Factor Allocation", styles['Author']))
-    story.append(Paragraph("Ken Ira Lacson Talingting | August 2, 2026", styles['DateLine']))
+    story.append(Paragraph("A Reproducible Benchmark for Probabilistic Factor Allocation", styles['SubTitle']))
+    story.append(Paragraph("Ken Ira Lacson Talingting", styles['Author']))
+    story.append(Paragraph("August 3, 2026", styles['DateLine']))
 
-    # --- 1. PROBLEM FRAMING (Expanded) ---
+    # Subtle horizontal line after title block
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.lightgrey, spaceAfter=12))
+
+    # --- 1. PROBLEM FRAMING ---
     story.append(Paragraph("<b>1. Problem Framing</b>", styles['SectionHeading']))
     
     story.append(Paragraph(
@@ -109,16 +123,16 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
-    # --- KEY RESULTS CALLOUT (Visible immediately on Page 1) ---
-    story.append(Spacer(1, 0.08*inch))
+    # --- KEY RESULTS CALLOUT (Boxed or emphasized) ---
+    story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph(
         "<b>Key Results (42 out-of-sample months):</b><br/>"
         "Sharpe Ratio: <b>1.49</b> &nbsp;|&nbsp; Ann. Return: <b>40.61%</b> &nbsp;|&nbsp; Max DD: <b>-13.73%</b> &nbsp;|&nbsp; Win Rate: <b>69%</b>",
         styles['Callout']
     ))
-    story.append(Spacer(1, 0.08*inch))
+    story.append(Spacer(1, 0.1*inch))
 
-    # --- 2. METHODOLOGY (Tight bullet points) ---
+    # --- 2. METHODOLOGY ---
     story.append(Paragraph("<b>2. Methodology</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "• <b>Data:</b> 155 months (2013–2026), 6 factors (SPY, IWD, MTUM, QUAL, USMV, VIX), FRED macro.<br/>"
@@ -127,9 +141,9 @@ def build_content(styles):
         "• <b>Backtest:</b> Expanding window, min_train=96, 10 bps costs.",
         styles['PaperBody']
     ))
-    story.append(Spacer(1, 0.08*inch))
+    story.append(Spacer(1, 0.1*inch))
 
-    # --- SINGLE FIGURE (Regime Probabilities) ---
+    # --- FIGURE (Regime Probabilities) ---
     story.append(Paragraph("<b>Figure 1: Regime Uncertainty Over Time</b>", styles['SubHeading']))
     if REGIME_PROBS_PATH.exists():
         story.append(Image(str(REGIME_PROBS_PATH), width=6.5*inch, height=2.8*inch, kind='proportional'))
@@ -143,7 +157,7 @@ def build_content(styles):
     # PAGE 2: RESULTS, DISCUSSION, LIMITATIONS, CONCLUSIONS
     # ===============================
 
-    # --- 3. RESULTS TABLE (Full model comparison) ---
+    # --- 3. RESULTS TABLE ---
     story.append(Paragraph("<b>3. Results Summary</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "In this experimental setup, the MoE model generated the highest Sharpe ratio (1.49) and annualized "
@@ -167,11 +181,17 @@ def build_content(styles):
         ('FONTNAME', (0,0), (-1,0), 'Times-Bold'),
         ('FONTSIZE', (0,0), (-1,-1), 9),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        # Clean academic table: only horizontal lines, no vertical grid
+        ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
+        ('LINEBELOW', (0,1), (-1,-1), 0.5, colors.grey),
+        ('LINEABOVE', (0,0), (-1,0), 1.5, colors.black),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
     ]))
     story.append(table)
-    story.append(Spacer(1, 0.08*inch))
+    story.append(Spacer(1, 0.1*inch))
 
     # --- 4. DISCUSSION & LIMITATIONS ---
     story.append(Paragraph("<b>4. Discussion & Limitations</b>", styles['SectionHeading']))
@@ -192,7 +212,7 @@ def build_content(styles):
     ))
 
     # --- 5. CONCLUSION ---
-    story.append(Spacer(1, 0.08*inch))
+    story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph("<b>5. Conclusion</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "This project provides an open-source, reproducible benchmark for evaluating probabilistic regime-aware "
@@ -202,7 +222,7 @@ def build_content(styles):
     ))
 
     # --- 6. REFERENCES & DATA SOURCES ---
-    story.append(Spacer(1, 0.08*inch))
+    story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph("<b>References & Data Sources</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "[1] Fama, E. F., & French, K. R. (1993). Common risk factors in the returns on stocks and bonds. <i>Journal of Financial Economics</i>, 33(1), 3-56.<br/>"
@@ -231,14 +251,14 @@ def main():
     doc = SimpleDocTemplate(
         str(output_path),
         pagesize=LETTER,
-        leftMargin=0.8*inch,
-        rightMargin=0.8*inch,
-        topMargin=0.6*inch,
-        bottomMargin=0.6*inch,
+        leftMargin=0.9*inch,
+        rightMargin=0.9*inch,
+        topMargin=0.7*inch,
+        bottomMargin=0.7*inch,
     )
     doc.build(story)
 
-    print(f"✅ LinkedIn research summary saved to: {output_path}")
+    print(f"✅ Academic-style LinkedIn research summary saved to: {output_path}")
     print(f"   Page count: ~{doc.page}")
 
 
