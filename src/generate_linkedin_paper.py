@@ -3,7 +3,8 @@
 generate_linkedin_paper.py
 
 Generates a 2-page LinkedIn-optimized research summary PDF using ReportLab.
-FIXED: Figure stays with caption, no white space, proper page breaks.
+FIXED: Figure sits at the top of Page 2, followed by the Results table on the same page.
+No white space. Clean 2-page layout.
 """
 
 from pathlib import Path
@@ -120,26 +121,24 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
-    # ================= FORCED PAGE BREAK BEFORE FIGURE =================
+    # ================= PAGE BREAK TO PAGE 2 =================
     story.append(PageBreak())
 
-    # ================= PAGE 2 (FIGURE ONLY) =================
-    # Wrap the figure + caption in KeepTogether so they never split
-    figure_block = []
-    figure_block.append(Paragraph("<b>Figure 1: Regime Uncertainty Over Time</b>", styles['SubHeading']))
+    # ================= PAGE 2: FIGURE + RESULTS TABLE + REST =================
+    
+    # --- FIGURE BLOCK (compressed to leave room for table) ---
+    story.append(Paragraph("<b>Figure 1: Regime Uncertainty Over Time</b>", styles['SubHeading']))
     if REGIME_PROBS_PATH.exists():
-        figure_block.append(Image(str(REGIME_PROBS_PATH), width=7.0*inch, height=3.0*inch, kind='proportional'))
-        figure_block.append(Spacer(1, 0.02*inch))
-        figure_block.append(Paragraph("<i>MoE dynamically assigns probabilities to 4 latent economic regimes.</i>", styles['Caption']))
+        # Reduced height to 2.5 inches so table fits below
+        story.append(Image(str(REGIME_PROBS_PATH), width=7.0*inch, height=2.5*inch, kind='proportional'))
+        story.append(Spacer(1, 0.02*inch))
+        story.append(Paragraph("<i>MoE dynamically assigns probabilities to 4 latent economic regimes.</i>", styles['Caption']))
     else:
-        figure_block.append(Paragraph("<i>[Figure not found. Run visualization.py first.]</i>", styles['Caption']))
+        story.append(Paragraph("<i>[Figure not found. Run visualization.py first.]</i>", styles['Caption']))
     
-    story.append(KeepTogether(figure_block))
-    
-    # ================= PAGE BREAK BEFORE RESULTS TABLE =================
-    story.append(PageBreak())
+    story.append(Spacer(1, 0.05*inch))
 
-    # ================= PAGE 3 (RESULTS & REST) =================
+    # --- RESULTS TABLE ---
     story.append(Paragraph("<b>3. Results Summary</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "In this experimental setup, the MoE model generated the highest Sharpe ratio (1.49) and annualized "
@@ -174,6 +173,7 @@ def build_content(styles):
     story.append(table)
     story.append(Spacer(1, 0.1*inch))
 
+    # --- DISCUSSION & LIMITATIONS ---
     story.append(Paragraph("<b>4. Discussion & Limitations</b>", styles['SectionHeading']))
     story.append(Paragraph(
         "The MoE model's performance appears to come from its allocation decisions rather than point prediction "
@@ -190,6 +190,7 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
+    # --- CONCLUSION ---
     story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph("<b>5. Conclusion</b>", styles['SectionHeading']))
     story.append(Paragraph(
@@ -199,6 +200,7 @@ def build_content(styles):
         styles['PaperBody']
     ))
 
+    # --- REFERENCES ---
     story.append(Spacer(1, 0.1*inch))
     story.append(Paragraph("<b>References & Data Sources</b>", styles['SectionHeading']))
     story.append(Paragraph(
@@ -234,7 +236,7 @@ def main():
     )
     doc.build(story)
 
-    print(f"✅ FINAL FIXED PDF saved to: {output_path}")
+    print(f"✅ FINAL 2-PAGE PDF saved to: {output_path}")
     print(f"   Page count: ~{doc.page}")
 
 
