@@ -216,7 +216,7 @@ def build_paper_content(styles):
         "This project investigates whether a probabilistic model that explicitly "
         "represents uncertainty over regimes can provide a coherent framework for dynamic factor "
         "allocation. Specifically, we implement a Mixture of Experts (MoE) model with a softmax gating network and "
-        "linear experts trained via Expectation-Maximization. We compare this approach against simple heuristics "
+        "linear experts trained via iterative gradient-based estimation. We compare this approach against simple heuristics "
         "(persistence, rolling average, momentum) and standard machine learning baselines (linear regression, random forest) "
         "using an expanding-window backtest with modeled transaction costs.",
         styles['PaperBody']
