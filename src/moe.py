@@ -22,7 +22,7 @@ class SimpleMoE:
     with baseline models. It uses:
     - Linear regression as experts (one per regime)
     - Softmax gating based on input features
-    - Expectation-Maximization style training
+    - Iterative gradient-based estimation (approximating EM)
     
     Architecture:
         Input -> Gating Network (linear) -> softmax -> weights
@@ -44,7 +44,7 @@ class SimpleMoE:
         
         Args:
             n_experts: Number of experts/regimes (default: 3)
-            n_iterations: Number of EM iterations (default: 50)
+            n_iterations: Number of training iterations (default: 50)
             learning_rate: Learning rate for updates (default: 0.01)
             random_state: Random seed for reproducibility
         """
@@ -216,7 +216,7 @@ class SimpleMoE:
     
     def fit(self, X, y):
         """
-        Train the Mixture of Experts model using EM algorithm.
+        Train the Mixture of Experts model using iterative gradient-based estimation.
         
         Args:
             X: Feature matrix (n_samples, n_features)
@@ -250,7 +250,7 @@ class SimpleMoE:
         self._initialize_parameters(n_features, n_outputs)
         
         # EM iterations
-        logger.info(f"Training MoE with {self.n_iterations} EM iterations...")
+        logger.info(f"Training MoE with {self.n_iterations} iterations...")
         
         self.loss_history = []
         

@@ -95,7 +95,7 @@ The MoE model consists of:
 2. **Expert Networks**: Linear regression models for each regime with Ridge regularization ($\alpha=0.1$)
 3. **Mixture Output**: Probability-weighted combination of expert predictions
 
-Training uses an Expectation-Maximization (EM) algorithm with 100 iterations.
+Training uses an iterative gradient-based estimation with 100 iterations.
 
 **Architecture**:
 

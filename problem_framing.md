@@ -117,7 +117,7 @@ To ensure a rigorous comparison, we evaluate models across several levels of com
 
 | Model | Description | Purpose |
 |-------|-------------|---------|
-| **Mixture of Experts (MoE)** | Softmax gating + linear experts per regime, EM training with Ridge regularization ($\alpha=0.1$) | Explicitly models regime uncertainty |
+| **Mixture of Experts (MoE)** | Softmax gating + linear experts per regime, gradient-based training with Ridge regularization ($\alpha=0.1$) | Explicitly models regime uncertainty |
 
 ### 4.2 Evaluation Framework
 

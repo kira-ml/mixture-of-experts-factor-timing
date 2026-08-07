@@ -105,7 +105,7 @@ def build_content(styles):
     # --- KEY RESULTS CALLOUT (The hook) ---
     story.append(Spacer(1, 0.15*inch))
     story.append(Paragraph(
-        "<b>Key Results (42 out-of-sample months):</b><br/>"
+        "<b>Key Results (42 out-of-sample months, descriptive only):</b><br/>"
         "Sharpe Ratio: <b>1.49</b> &nbsp;|&nbsp; Ann. Return: <b>40.61%</b> &nbsp;|&nbsp; Max DD: <b>-13.73%</b> &nbsp;|&nbsp; Win Rate: <b>69%</b>",
         styles['Callout']
     ))

@@ -248,7 +248,7 @@ def build_paper_content(styles):
         "rolling average; (2) an exponentially weighted momentum model (12-month window, decay=0.9) which serves as a "
         "trend-following baseline; (3) standard ML baselines—linear regression and random forest (100 trees, max depth 10); "
         "and (4) the primary focus—a Mixture of Experts (MoE) model with K=4 linear experts, softmax gating, "
-        "and EM training for 100 iterations with Ridge regularization (alpha=0.1).",
+        "and 100 training iterations with Ridge regularization (alpha=0.1).",
         styles['PaperBody']
     ))
     
@@ -257,7 +257,7 @@ def build_paper_content(styles):
         "We employ an expanding-window backtest. The minimum training size is set to 96 months, a choice made to "
         "balance two competing requirements: (1) the MoE model requires sufficient data for stable parameter "
         "estimation, and (2) the out-of-sample period must be long enough to provide a meaningful evaluation. "
-        "This yields 42 out-of-sample predictions from July 2022 to July 2026. Allocations are magnitude-"
+        "This yields 42 out-of-sample predictions from July 2022 to July 2026 (descriptive results only)."
         "weighted long-only on positive predictions, with a modeled transaction cost of 10 basis points applied "
         "at the portfolio level across the full backtest sequence. Metrics include predictive accuracy (RMSE, MAE) "
         "and investment performance (Sharpe ratio, annualized return, maximum drawdown, Calmar ratio, and win rate).",
@@ -436,7 +436,8 @@ def build_paper_content(styles):
         "VIX exposure, which may overstate achievable returns. Additionally, the model uses 96 features with 96 "
         "training months, creating a high-dimensional feature space. While Ridge regularization mitigates this, "
         "some overfitting risk remains. FRED macroeconomic indicators are subject to publication lags of 1-2 months; "
-        "our backtest assumes immediate availability, which may overstate real-time performance.",
+        "our backtest assumes immediate availability, which may overstate real-time performance. Transaction costs "
+        "are applied from the second period onward; the initial portfolio is assumed to be established at zero cost.",
         styles['PaperBody']
     ))
     content.append(Paragraph(
