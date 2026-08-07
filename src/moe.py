@@ -403,7 +403,7 @@ def create_moe(
     
     Args:
         n_experts: Number of experts/regimes
-        n_iterations: Number of EM iterations
+        n_iterations: Number of training iterations
         learning_rate: Learning rate
         random_state: Random seed
         

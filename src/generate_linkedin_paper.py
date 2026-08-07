@@ -129,7 +129,7 @@ def build_content(styles):
     story.append(Paragraph(
         "• <b>Data:</b> 155 months (2013–2026), 6 factors (SPY, IWD, MTUM, QUAL, USMV, VIX), FRED macro.<br/>"
         "• <b>Features:</b> 96 lagged returns + FRED transformations.<br/>"
-        "• <b>Models:</b> Persistence, Rolling Avg, Momentum, Linear, RF, <b>MoE (K=4, EM, Ridge)</b>.<br/>"
+        "• <b>Models:</b> Persistence, Rolling Avg, Momentum, Linear, RF, <b>MoE (K=4, Ridge)</b>.<br/>"
         "• <b>Backtest:</b> Expanding window, min_train=96, 10 bps costs.",
         styles['PaperBody']
     ))

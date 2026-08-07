@@ -257,8 +257,8 @@ def build_paper_content(styles):
         "We employ an expanding-window backtest. The minimum training size is set to 96 months, a choice made to "
         "balance two competing requirements: (1) the MoE model requires sufficient data for stable parameter "
         "estimation, and (2) the out-of-sample period must be long enough to provide a meaningful evaluation. "
-        "This yields 42 out-of-sample predictions from July 2022 to July 2026 (descriptive results only)."
-        "weighted long-only on positive predictions, with a modeled transaction cost of 10 basis points applied "
+        "This yields 42 out-of-sample predictions from July 2022 to July 2026 (descriptive results only). "
+        "We use magnitude-weighted long-only positions on positive predictions, with a modeled transaction cost of 10 basis points applied "
         "at the portfolio level across the full backtest sequence. Metrics include predictive accuracy (RMSE, MAE) "
         "and investment performance (Sharpe ratio, annualized return, maximum drawdown, Calmar ratio, and win rate).",
         styles['PaperBody']
