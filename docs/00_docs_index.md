@@ -2,8 +2,8 @@
 
 **Project:** `moe-factor-timing` — v2 (Decision-Focused Regime-Aware Factor Allocation)
 **Folder:** `docs/`
-**Status:** Pre-code documentation set — Drafted
-**Last Updated:** 2026-08-03
+**Status:** Documentation set — maintained through Phase 5
+**Last Updated:** 2026-09-24
 
 ---
 
@@ -50,7 +50,7 @@ These are the documents that must be established before coding begins.
 | 08 | `08_minimum_viable_baseline_end_to_end_pipeline_architecture.md` | The smallest end-to-end system that can produce a valid, reproducible result. Module boundaries, data flow, interfaces. | ✅ Drafted |
 | 09 | `09_stop_criteria_and_kill_criteria.md` | Pre-committed conditions for stopping, pivoting, or killing the project. Prevents goalpost-moving after seeing results. | ✅ Drafted |
 
-**All pre-code documents are drafted.** The remaining step before implementation is to review each document, resolve open questions where possible, and freeze the set.
+**All pre-code documents are drafted and de facto frozen** (Phase 0 exit 2026-08-03). Phase 1–4 experiments are recorded in `10_experiment_log.md`. No changes to `01`–`09` are permitted without a version bump (`09` Section 12.2).
 
 ---
 
@@ -100,9 +100,16 @@ Notes:
 
 The following documents are intentionally **out of scope for the pre-code phase**. They will be created while building the system, not before. They are listed here so they are not forgotten.
 
+**Not deferred — created during the build:**
+
+| File | Created at | Purpose |
+|------|------------|---------|
+| `10_experiment_log.md` | Phase 4 exit (2026-09-24) | Experiment audit trail and decision-log requirement of `09` Section 12.1. |
+
+**Deferred (post-MVP):**
+
 | File | Reason for Deferral |
 |------|---------------------|
-| `10_model_hypotheses_and_model_zoo.md` | Depends on empirical behavior of the MVP. |
 | `11_regime_definitions_and_identification.md` | Depends on data contract and MVP results. |
 | `12_transaction_costs_capacity_and_constraints.md` | Requires cost calibration from real instruments. |
 | `13_statistical_validation_and_multiple_testing.md` | Requires the actual experiment grid. |
@@ -119,7 +126,7 @@ The following documents are intentionally **out of scope for the pre-code phase*
 
 Do not create these prematurely. Premature documentation of unknowns becomes fiction.
 
-**Exception:** `21_decision_log_and_version_history.md` is created at Phase 0 exit, because stop/pivot/kill decisions in `09` require a place to be recorded.
+**Note:** `21_decision_log_and_version_history.md` is superseded by `10_experiment_log.md` (created at Phase 4 exit). Stop/pivot/kill decisions per `09` Section 12.1 are recorded there.
 
 ---
 
@@ -243,20 +250,25 @@ The project proceeds through six phases, defined in `09`, Section 10.
 | 5 | Report | Phase 4 exit | Report compliant with `07`, Section 12 |
 | 6 | Release | Phase 5 exit | Repository tagged `v2.0` |
 
-**Current phase:** Phase 0 — Documentation.
-**Next action:** Review and freeze `docs/00`–`docs/09`.
+**Current phase:** Phase 5 — Report (Phase 4 exit tag `v2.0-phase4-exit`).
+**Next action:** Produce a Phase-5 report compliant with `07` Section 12.
 
 ---
 
 ## 9. Open Questions
 
-1. Which documents in the pre-code set should be frozen before implementation, versus allowed to remain in `Draft`?
-2. Should `docs/10_decision_log_and_version_history.md` be created at Phase 0 exit, or deferred until the first stop/pivot/kill decision is made?
-3. Should the `docs/00`–`docs/09` set be frozen together, or frozen incrementally as each is reviewed?
-4. What is the single most important thing that must be true for v2 to be worth building?
-5. Should Phase 0's exit gate require a formal review of each document, or is a self-review sufficient?
-6. Should `pyproject.toml` and `requirements.txt` be written before Phase 1, or during Phase 1?
-7. Should the first v2 commit after freezing the docs be a tag (e.g., `v2.0-docs-frozen`)?
+1. ~~Which documents in the pre-code set should be frozen before implementation?~~
+   **Resolved 2026-08-03:** all of `01`–`09` frozen together at Phase 0 exit.
+2. ~~Should `docs/10_decision_log.md` be created at Phase 0 exit, or deferred?~~
+   **Resolved 2026-09-24:** created as `docs/10_experiment_log.md` at Phase 4 exit.
+3. ~~Should the `docs/00`–`docs/09` set be frozen together, or frozen incrementally?~~
+   **Resolved 2026-08-03:** frozen together.
+4. What is the single most important thing that must be true for v2 to be worth building? — *Still open.*
+5. Should Phase 0's exit gate require a formal review of each document, or is a self-review sufficient? — *Still open.*
+6. ~~Should `pyproject.toml` and `requirements.txt` be written before Phase 1, or during Phase 1?~~
+   **Resolved 2026-08-03:** written during Phase 1.
+7. ~~Should the first v2 commit after freezing the docs be a tag?~~
+   **Resolved 2026-08-03:** tagged `v2.0-docs-frozen`; superseded by `v2.0-phase4-exit`.
 
 ---
 
@@ -266,6 +278,8 @@ The project proceeds through six phases, defined in `09`, Section 10.
 |---------|------|---------|
 | 0.1 | 2026-08-03 | Initial index for the v2 pre-code documentation set. |
 | 0.2 | 2026-08-03 | Updated status of `01`–`09` to Drafted. Added v1 archive contract, project lifecycle table, and updated open questions. |
+| 0.3 | 2026-09-24 | Created `10_experiment_log.md` at Phase 4 exit. Updated lifecycle to Phase 5. Marked Open Question 2 resolved. |
+| 0.4 | 2026-09-24 | Header status updated to "maintained through Phase 5". Section 2 clarified frozen status of `01`–`09`. Marked Open Questions 1, 3, 6, 7 resolved. |
 
 ---
 
