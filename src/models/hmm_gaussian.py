@@ -34,10 +34,16 @@ class HMMGaussianModel:
         _, posteriors = self.model.score_samples(self.X_train)
         pi = posteriors[-1]  # (K,)
         mu_k = self.model.means_  # (K, N)
+        covs = self.model.covars_
         if self.covariance_type == "diag":
-            cov_k = np.array([np.diag(c) for c in self.model.covars_])  # (K, N, N)
+            if covs.ndim == 3:
+                # hmmlearn 0.3.x returns (K, N, N) diagonal matrices for 'diag'
+                cov_k = covs
+            else:
+                # older hmmlearn returned (K, N) variances
+                cov_k = np.array([np.diag(c) for c in covs])
         else:
-            cov_k = self.model.covars_
+            cov_k = covs
         mu = (pi[:, None] * mu_k).sum(axis=0)
         diff = mu_k - mu[None, :]
         Sigma = np.zeros((mu.shape[0], mu.shape[0]))
@@ -46,8 +52,12 @@ class HMMGaussianModel:
         return mu, _shrink_to_pd(Sigma)
 
 
-def _shrink_to_pd(cov: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+def _shrink_to_pd(cov: np.ndarray, alpha: float = 0.05, eps: float = 1e-6, max_eig: float = 1.0) -> np.ndarray:
+    """Ledoit-Wolf-style shrinkage toward scaled identity, with eigenvalue bounds."""
+    n = cov.shape[0]
     cov = 0.5 * (cov + cov.T)
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    eigvals = np.clip(eigvals, eps, None)
+    mu = np.trace(cov) / n
+    shrunk = (1.0 - alpha) * cov + alpha * mu * np.eye(n)
+    eigvals, eigvecs = np.linalg.eigh(shrunk)
+    eigvals = np.clip(eigvals, eps, max_eig)
     return eigvecs @ np.diag(eigvals) @ eigvecs.T

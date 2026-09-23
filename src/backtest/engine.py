@@ -10,8 +10,10 @@ def compute_returns(
     realized: np.ndarray,
     w_prev: np.ndarray,
     cost_bps: float,
+    cash_return: float = 0.0,
 ) -> dict:
-    gross = float(weights @ realized)
+    cash_weight = max(0.0, 1.0 - float(weights.sum()))
+    gross = float(weights @ realized + cash_weight * cash_return)
     turnover = 0.5 * float(np.abs(weights - w_prev).sum())
     cost = float(cost_bps / 10000.0 * np.abs(weights - w_prev).sum())
     net = gross - cost
