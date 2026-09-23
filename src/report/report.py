@@ -23,6 +23,23 @@ def report(cfg: dict, run_dir: Path, per_model: dict, eval_summary: dict) -> Non
     df = pd.DataFrame(rows)
     df.to_csv(report_dir / "summary.csv", index=False)
 
+    # N_trials disclosure per 07 Section 8.6 (see docs/10_experiment_log.md)
+    # Baseline + lambda sweep (4) + robustness sweep (6) = 11 configurations,
+    # each with 2 probabilistic models = 22 model-config pairs.
+    n_trials = 22
+    pd.DataFrame([{"n_trials": n_trials,
+                   "note": "11 configurations × 2 probabilistic models; see "
+                           "docs/10_experiment_log.md and results/*.csv"}]
+                 ).to_csv(report_dir / "n_trials.csv", index=False)
+
+    # Capacity estimate placeholder per 07 Section 7.4
+    # No market-impact model was calibrated in MVP; see 05 Section 7.3.
+    pd.DataFrame([{"capacity_usd": None,
+                   "model": "not_estimated",
+                   "reason": "No calibrated impact model in MVP; "
+                             "see 05 Section 7.3 and 08 Section 13.1."}]
+                 ).to_csv(report_dir / "capacity.csv", index=False)
+
     # Cumulative wealth plot
     fig, ax = plt.subplots(figsize=(10, 5))
     for name, data in per_model.items():
@@ -69,7 +86,7 @@ def report(cfg: dict, run_dir: Path, per_model: dict, eval_summary: dict) -> Non
             plt.close(fig)
 
 
-            
+
     # Disclosures
     disclosures = {
         "non_goals": [
