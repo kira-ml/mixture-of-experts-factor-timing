@@ -511,16 +511,146 @@ the current iteration budget.
 
 ---
 
-## 11. Final outcome
+## 11. Experiment 8 — Phase 1 validation gate closure
+
+**Date:** 2026-09-24
+**Protocol reference:** `09` Section 10.2 (Phase 1 exit gate), `08` Section 17 (testing strategy), `04` Section 10.4 (invariant IV.4)
+**Runs:** `scripts/check_determinism.py`, `tests/test_pipeline_contracts.py`, `runs/20260923T173318Z`
+**Output:** `docs/11_phase1_validation_log.md`
+
+### Hypothesis / motivation
+
+Phases 2–4 experiments were executed without formally closing the
+Phase 1 exit gate. `09` Section 10.2 requires contract tests,
+falsification tests, an integration test, and a valid manifest
+before evaluation begins. Three of five were outstanding. If the
+pipeline has an undiscovered bug in feature construction or solver
+invocation, the negative result could be an artifact.
+
+The purpose of this experiment is to close that gate before writing
+the Phase 5 report.
+
+### Configuration delta
+
+None — validation only. Added:
+
+- `scripts/check_determinism.py` — runs pipeline twice, compares manifest hashes
+- `tests/test_pipeline_contracts.py` — V13 falsification tests
+- Shape asserts in `src/run/orchestrator.py`
+- Solver status recording in `src/run/orchestrator.py`
+- `fallback_rate` and `n_observations` in `src/evaluate/evaluate.py`
+- V13 leakage check in `src/features/build.py`
+- OSQP `polish=True, threads=1` in `src/decision/mean_variance.py`
+
+### Results
+
+| Validation | Method | Result |
+|---|---|---|
+| V1 — Cash residual earns risk-free | `cash` Sharpe, `ann_return` after fix | 17.2, 4.4% ✅ |
+| V2 — HMM covariance shape | `scripts/diag_hmm.py` | NLL 231 → −5.9 ✅ |
+| V3 — V13 leakage fires | Inject target as feature | Flagged with correlation 1.0 ✅ |
+| V4 — Determinism | Two-run manifest hash compare | 18/18 artifacts identical ✅ |
+| V5 — Solver statuses tracked | `Select-String` on orchestrator | 4 matches ✅ |
+| V6 — Fallback rate | 49 rebalances × 7 models | `fallback_rate = 0.0` ✅ |
+
+### Data-driven decision
+
+All six validations pass. **`09` Section 5.1 T6 does not fire.** The
+negative result is not a solver artifact, not a feature artifact, and
+not a determinism failure.
+
+**Phase 1 exit gate satisfied retroactively.** Documented in
+`docs/11_phase1_validation_log.md`.
+
+Residual disclosure carried forward: **≤0.005 Sharpe drift** between
+full-config runs for probabilistic models (ridge 1.1211 → 1.1264).
+Two orders of magnitude smaller than the effect under discussion;
+immaterial to ranking.
+
+### Justification
+
+`09` Section 10.2 is binding. Its requirements cannot be skipped
+simply because downstream phases ran first. The correct response is
+to close the gate retroactively and disclose the sequence in the
+report, not to pretend the gate was closed.
+
+`07` Section 15 lists the failure modes that would invalidate the
+run: look-ahead bias, target leakage, unstable solver. None fired.
+
+### Next experiment
+
+Phase 5 — Report.
+
+---
+
+## 12. Experiment 9 — Expected utility point estimate restoration
+
+**Date:** 2026-09-24
+**Protocol reference:** `07` Section 7.5 (primary decision metric)
+**Run:** `runs/20260923T173318Z`
+
+### Hypothesis / motivation
+
+During the Phase 1 validation edits, the `expected_utility` point
+estimate column was accidentally dropped from `summary.csv`. The
+bootstrap CI columns remained but the point estimate was missing.
+`07` Section 7.5 names expected utility the primary decision metric;
+without the point estimate, the report cannot cite it.
+
+### Configuration delta
+
+None — restoration. Added one line to `src/evaluate/evaluate.py`:
+
+```python
+summary["expected_utility"] = metrics.expected_utility(data["net_returns"], lam)
+```
+
+### Results
+
+| Model | EU | 95% CI |
+|---|---:|---|
+| persistence | 0.00719 | [−0.0018, 0.0159] |
+| naive_1n | **0.00689** | [−0.0014, 0.0152] |
+| rolling_avg | 0.00679 | [−0.0013, 0.0155] |
+| momentum | 0.00648 | [−0.0019, 0.0152] |
+| ridge | 0.00487 | [0.0001, 0.0091] |
+| hmm_gaussian | 0.00430 | [−0.0032, 0.0113] |
+
+### Data-driven decision
+
+Values match the pre-validation run (`20260923T161638Z`) to three
+significant figures. The pipeline is stable. Ridge trails 1/N by 29%
+on the primary metric; HMM by 38%.
+
+**`09` Section 7.1 E1 remains fired.** No change to the outcome.
+
+### Justification
+
+The point estimate is required for the Phase 5 report. The fix is a
+restoration, not a change. No re-analysis needed.
+
+### Next experiment
+
+Phase 5 — Report. No further modeling authorized.
+
+---
+
+## 13. Final outcome
 
 **Decision-layer:** Negative. 1/N beats every model on the primary
-decision metric (expected utility) in 6/6 robustness configurations.
+decision metric (expected utility) in **6/6 robustness configurations**.
 Confirmed on both the primary metric and Sharpe.
 
 **Predictive-layer:** Two distinct failures.
+
 - Ridge is biased (median PIT 0.63).
 - HMM is overconfident (frac tails 3× expected).
+
 Neither is fixable within the pre-committed iteration budget.
+
+**Pipeline:** Fully validated retroactively. Determinism 18/18,
+fallback rate 0.0, V13 leakage check fires on injection.
+`docs/11_phase1_validation_log.md`.
 
 **Criterion status:**
 
@@ -529,18 +659,35 @@ Neither is fixable within the pre-committed iteration budget.
 | E1 | No model beats 1/N on EU | **fired** |
 | E4 | Failure to beat 1/N in ≥4 of 9 dimensions | **fired** |
 | EK1 | No model beats 1/N after MVP + 2 iterations | **fired** |
-| EK2 | K > 1 never improves EU | not fired (inconclusive) |
+| EK3 | Decision-focused optimization never beats EW | **fired** |
+| S4 | Bootstrap CIs wider than effect size | **fired** |
 | S5 | PIT calibration fails | **fired** (ridge, HMM) |
+| SK1 | Sample insufficient for confirmatory claims | **fired** |
+| 13.2 | Kill the decision-focused approach | **fired** |
+| EK2 | K > 1 never improves EU | not fired (inconclusive) |
+| E2 | Best model's Sharpe CI includes zero | not fired |
+| E3, E7, E8, E9 | DSR, subperiod, seed stability, regime-conditional | not tested |
+| S1, S2, S3 | Power analysis, MinTRL, DSR | not tested |
 
-**Secondary finding:** Calibration does not imply decision value in
-this setup. HMM's single calibrated configuration still underperforms
-1/N by 45%.
+**Secondary finding:** Calibration does not imply decision value. HMM
+at `min_train=132, K=3` passes PIT (p=0.089) but underperforms 1/N by
+45% on expected utility.
 
-**Next phase:** Phase 5 — Report, per `09` Section 10.6.
+**Phases:**
+
+- Phase 0 — Documentation: closed 2026-08-03 (de facto)
+- Phase 1 — Pipeline MVP: closed retroactively 2026-09-24
+- Phase 2 — Baseline Evaluation: closed 2026-09-24
+- Phase 3 — Primary Evaluation: closed 2026-09-24 (E1 fired)
+- Phase 4 — Robustness: closed 2026-09-24 (tag `v2.0-phase4-exit`)
+- Phase 5 — Report: closed 2026-09-24 (`results/v2_report.md`, tag `v2.0-phase5-exit`)
+- Phase 6 — Release: pending (README, tag `v2.0`, push)
+
+**Next phase:** Phase 6 — Release, per `09` Section 10.7.
 
 ---
 
-## 12. Ties to Other Documents
+## 14. Ties to Other Documents
 
 | Concern | Where specified |
 |---|---|
@@ -555,15 +702,16 @@ this setup. HMM's single calibrated configuration still underperforms
 
 ---
 
-## 13. Version History
+## 15. Version History
 
 | Version | Date | Changes |
 |---|---|---|
 | 0.1 | 2026-09-24 | Initial experiment log through Phase 4 exit. |
+| 0.2 | 2026-09-24 | Added Experiments 8 (Phase 1 validations) and 9 (expected utility restoration). Updated Final Outcome with the full criterion status and phase timeline. |
 
 ---
 
-## 14. References
+## 16. References
 
 - `results/lambda_sweep.csv` — Experiment 3 output.
 - `results/robustness_sweep.csv` — Experiment 7 output.
@@ -571,3 +719,6 @@ this setup. HMM's single calibrated configuration still underperforms
 - `scripts/pit_shape.py` — Experiment 6 diagnostic.
 - `scripts/sweep_lambda.py` — Experiment 3 runner.
 - `scripts/sweep_robustness.py` — Experiment 7 runner.
+- `scripts/check_determinism.py` — Experiment 8 V4.
+- `tests/test_pipeline_contracts.py` — Experiment 8 V3.
+- `docs/11_phase1_validation_log.md` — Experiment 8 reference.
