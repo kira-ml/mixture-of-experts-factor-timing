@@ -1,0 +1,2 @@
+start_date,end_date,n_months,n_factors,factors,date_range
+2013-08-01,2026-08-02,155,6,"['SPY', 'IWD', 'MTUM', 'QUAL', 'USMV', 'VIX']",2013-09-30 00:00:00 to 2026-07-31 00:00:00
