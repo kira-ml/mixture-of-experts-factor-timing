@@ -1,0 +1,83 @@
+run:
+  run_id: null
+  seed: 42
+
+data:
+  sources:
+    yfinance:
+      tickers: [SPY, IWD, MTUM, QUAL, USMV, BIL]
+      frequency: monthly
+    fred:
+      series: [T10Y2Y, VIXCLS]
+      api_key_env: FRED_API_KEY
+  universe: [SPY, IWD, MTUM, QUAL, USMV]
+  cash_proxy: BIL
+  start_date: "2013-08-01"
+  end_date: null
+
+features:
+  lagged_returns_lags: [1, 6, 12]
+  macro_series: [T10Y2Y, VIXCLS]
+  imputation:
+    method: ffill_only
+    max_rate: 0.05
+
+split:
+  type: expanding
+  min_train: 96
+  test_step: 1
+
+models:
+  - name: naive_1n
+    type: fixed
+    method: equal
+  - name: cash
+    type: fixed
+    method: cash
+  - name: persistence
+    type: fixed
+    method: persistence
+  - name: rolling_avg
+    type: fixed
+    method: rolling_mean
+    params: {window: 12}
+  - name: momentum
+    type: fixed
+    method: momentum
+    params: {decay: 0.9, window: 12}
+  - name: ridge
+    type: probabilistic
+    params: {alpha: 1.0}
+  - name: hmm_gaussian
+    type: regime_aware
+    params: {n_states: 2, covariance_type: diag, n_iter: 100}
+
+decision:
+  utility: mean_variance
+  risk_aversion: 10
+  constraints:
+    long_only: true
+    max_weight: 0.40
+    turnover_cap: 0.50
+    min_deployment: 0.0
+  cost:
+    mode: assumed
+    bps: 10.0
+  solver:
+    name: cvxpy
+    tolerance: 1.0e-6
+    fallback_max_rate: 0.05
+
+evaluation:
+  primary_predictive_metric: nll
+  primary_decision_metric: expected_utility
+  bootstrap:
+    method: stationary_block
+    block_length: 3
+    n_repetitions: 1000
+    seed: 42
+  deflated_sharpe:
+    enabled: true
+
+robustness:
+  dimensions: []
