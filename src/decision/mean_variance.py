@@ -38,7 +38,12 @@ def solve(
     ]
     prob = cp.Problem(objective, constraints)
     try:
-        prob.solve(solver=cp.OSQP, verbose=False)
+        prob.solve(
+            solver=cp.OSQP,
+            verbose=False,
+            polish=True,
+            solver_opts={"threads": 1, "eps_abs": 1e-8, "eps_rel": 1e-8},
+        )
     except Exception:
         try:
             prob.solve(verbose=False)

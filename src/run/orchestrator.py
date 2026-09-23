@@ -88,6 +88,7 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
         mtype = mcfg["type"]
         net_returns, turnovers, costs = [], [], []
         weights_list = []
+        solver_statuses: list[str] = []
         predictions = [] if mtype != "fixed" else None
 
         w_prev = np.zeros(n)  # start in cash
@@ -117,8 +118,17 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
             y_train = y_np[: t_train_end + 1]
             X_test = X_np[t_test]
 
+            assert X_train.shape[0] == y_train.shape[0], (
+                f"X/y shape mismatch at t={t_test}: "
+                f"{X_train.shape} vs {y_train.shape}"
+            )
+            assert X_test.ndim == 1 and X_test.shape[0] == X_np.shape[1], (
+                f"X_test shape {X_test.shape} for p={X_np.shape[1]}"
+            )
+
             if mtype == "fixed":
                 w = allocator.weights(t_test, returns_universe)
+                solver_statuses.append("fixed")
             else:
                 probabilistic.fit(X_train, y_train)
                 mu, Sigma = probabilistic.predict_distribution(X_test)
@@ -131,6 +141,7 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
                     max_weight=constraints["max_weight"],
                     turnover_cap=constraints["turnover_cap"],
                 )
+                solver_statuses.append(str(_status))
                 predictions.append((y_np[t_test], mu, Sigma))
 
             realized = returns_universe[t_test]
@@ -148,6 +159,7 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
             "predictions": predictions,
             "cash_returns": cash_returns[len(cash_returns) - len(net_returns):],
             "weights": np.array(weights_list),
+            "solver_statuses": solver_statuses,
         }
 
         weights_df = pd.DataFrame(

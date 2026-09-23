@@ -62,6 +62,18 @@ def build_features(cfg: dict, run_dir: Path) -> dict:
         "T_over_p": float(len(X) / max(X.shape[1], 1)),
     }
 
+    # V13 — target leakage correlation check (warn only, per 06 Section 9.3)
+    ceiling = 0.95
+    leakage: dict[str, float] = {}
+    for feat in X.columns:
+        for tgt in y.columns:
+            c = float(X[feat].corr(y[tgt]))
+            if abs(c) > ceiling:
+                leakage[f"{feat}|{tgt}"] = c
+    manifest["leakage_warnings"] = leakage
+    if leakage:
+        print(f"[V13] potential leakage (>{ceiling}): {leakage}")
+
     feat_dir = run_dir / "features"
     feat_dir.mkdir(parents=True, exist_ok=True)
     save_parquet(X, feat_dir / "X.parquet")

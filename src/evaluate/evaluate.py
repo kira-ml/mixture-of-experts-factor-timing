@@ -30,7 +30,17 @@ def evaluate(cfg: dict, run_dir: Path, per_model: dict) -> dict:
     for name, data in per_model.items():
         summary = metrics.summary(data["net_returns"])
         summary["total_turnover"] = float(np.sum(data["turnover"]))
+        summary["total_cost"] = float(np.sum(data["costs"]))
+        summary["n_observations"] = int(len(data["net_returns"]))
         summary["expected_utility"] = metrics.expected_utility(data["net_returns"], lam)
+
+        statuses = data.get("solver_statuses", [])
+        if statuses:
+            n_reb = len(statuses)
+            n_fb = sum(1 for s in statuses if s.startswith("fallback"))
+            summary["n_rebalances"] = n_reb
+            summary["n_fallback"] = n_fb
+            summary["fallback_rate"] = float(n_fb / n_reb) if n_reb else 0.0
 
         if data.get("predictions"):
             nlls, crps_vals, pit_vals = [], [], []
