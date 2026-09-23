@@ -87,6 +87,7 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
         print(f"  model: {name}")
         mtype = mcfg["type"]
         net_returns, turnovers, costs = [], [], []
+        weights_list = []
         predictions = [] if mtype != "fixed" else None
 
         w_prev = np.zeros(n)  # start in cash
@@ -133,10 +134,11 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
                 predictions.append((y_np[t_test], mu, Sigma))
 
             realized = returns_universe[t_test]
-            metrics_t = engine.compute_returns(w, realized, w_prev, cost_bps)
+            metrics_t = engine.compute_returns(w, realized, w_prev, cost_bps, cash_return=float(cash_returns[t_test]))
             net_returns.append(metrics_t["net_return"])
             turnovers.append(metrics_t["turnover"])
             costs.append(metrics_t["cost"])
+            weights_list.append(w.copy())
             w_prev = w
 
         results[name] = {
@@ -145,7 +147,17 @@ def _run_models(cfg: dict, run_dir: Path, splits: dict) -> dict:
             "costs": np.array(costs),
             "predictions": predictions,
             "cash_returns": cash_returns[len(cash_returns) - len(net_returns):],
+            "weights": np.array(weights_list),
         }
+
+        weights_df = pd.DataFrame(
+            weights_list,
+            index=[s["test_date"] for s in splits["splits"]],
+            columns=universe,
+        )
+        weights_dir = run_dir / "weights"
+        weights_dir.mkdir(parents=True, exist_ok=True)
+        weights_df.to_parquet(weights_dir / f"{name}.parquet")
 
     return results
 

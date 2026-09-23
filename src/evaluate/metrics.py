@@ -74,3 +74,11 @@ def summary(net_returns: np.ndarray) -> dict:
         "calmar": calmar(net_returns),
         "mean_monthly": float(np.mean(net_returns)),
     }
+
+
+
+def expected_utility(net_returns: np.ndarray, risk_aversion: float) -> float:
+    """Realized mean-variance utility: mean(R) - (lambda/2) * var(R)."""
+    mu = float(np.mean(net_returns))
+    var = float(np.var(net_returns, ddof=1))
+    return mu - (risk_aversion / 2.0) * var
